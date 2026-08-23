@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下載電子地圖 · Scout System</title>
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/download.css" />
+</head>
+<body class="page">
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/mark.svg" alt="" />
+      <div>
+        <h1>SCOUT SYSTEM</h1>
+        <small>策劃者下載官方底圖，用來畫圖出紙圖</small>
+      </div>
+    </div>
+    <div class="top-actions">
+      <a class="nav" href="mock.html">教學 MOCK</a>
+      <a class="nav" href="index.html">設計定向地圖</a>
+    </div>
+  </header>
+  <div class="page-inner">
+    <section class="hero">
+      <span class="badge-free">© Scout System</span>
+      <h1>電子地圖下載中心</h1>
+      <p>給童軍成員：這裡只連到<strong>地政總署／漁護署官方免費檔</strong>。電子版 HM20C＝iB20000；郊遊圖紙本沒有掃描 PDF，改用 e香港街小比例圖＋官方地形資料。下載後請遵守署方版權告示。</p>
+    </section>
+    <nav class="tabs" aria-label="下載類別">
+      <button type="button" class="active" data-tab="hm20c">1. 電子 HM20C</button>
+      <button type="button" data-tab="country">2. 電子郊遊圖</button>
+      <button type="button" data-tab="ehkg">3. e香港街（城市）</button>
+      <button type="button" data-tab="print">4. 本系統列印</button>
+      <button type="button" data-tab="ideas">5. 下一步功能</button>
+    </nav>
+    <div id="panel"></div>
+  </div>
+  <script type="module" src="js/download-page.js"></script>
+</body>
+</html>

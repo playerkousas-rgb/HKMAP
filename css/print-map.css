@@ -1,0 +1,84 @@
+.print-app {
+  overflow: auto;
+  height: auto;
+  background: #d8d2c4;
+  color: var(--ink);
+}
+.print-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px 14px;
+  background: #16362c;
+  color: #f3eee3;
+}
+.print-bar span { opacity: .8; font-size: 13px; margin-left: 8px; }
+.print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.print-actions a.ghost { text-decoration: none; display: inline-block; }
+.print-actions select {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.sheet {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 16px auto 40px;
+  background: #fff;
+  padding: 10mm 10mm 12mm;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+}
+.sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+.sheet-head h1 { margin: 0; font-size: 20px; font-family: var(--display); }
+.sheet-head p { margin: 4px 0 0; font-size: 12px; color: #444; }
+.sheet-mark { display: flex; gap: 8px; align-items: center; font-size: 11px; font-weight: 700; }
+.sheet-mark img { width: 32px; height: 32px; border-radius: 8px; }
+
+#print-map {
+  height: 168mm;
+  border: 1px solid #222;
+  background: #cfd6c8;
+}
+.sheet-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  margin: 6px 0 10px;
+  color: #333;
+}
+.desc h2 { font-size: 13px; margin: 0 0 6px; }
+.desc table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.desc th, .desc td { border: 1px solid #bbb; padding: 5px 7px; text-align: left; }
+.desc th { background: #f3eee3; }
+body:not(.leader) .leader-only { display: none; }
+
+@media print {
+  .no-print { display: none !important; }
+  .print-app { background: #fff; }
+  .sheet {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  #print-map { height: 168mm; }
+  .leaflet-control-container { display: none !important; }
+}
