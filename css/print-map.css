@@ -32,13 +32,16 @@
   padding: 6px 8px;
 }
 
+/* 螢幕預覽 = 實際列印頁：landscape 整頁（含 8 mm 頁邊距），
+   圖面寬度與列印一致（A4 281 mm），圈多大、印多大，看得到。 */
 .sheet {
-  width: 210mm;
-  min-height: 297mm;
+  width: 297mm;
+  min-height: 210mm;
   margin: 16px auto 40px;
   background: #fff;
-  padding: 10mm 10mm 12mm;
+  padding: 8mm;
   box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  position: relative;
 }
 .sheet-head {
   display: flex;
@@ -51,19 +54,23 @@
 .sheet-mark { display: flex; gap: 8px; align-items: center; font-size: 11px; font-weight: 700; }
 .sheet-mark img { width: 32px; height: 32px; border-radius: 8px; }
 
+/* 三種紙張的實際列印頁（landscape、8 mm 頁邊距） */
 @page { size: A4 landscape; margin: 8mm; }
-@media print { body[data-paper="A3"] { --paper-width: 400mm; } body[data-paper="A5"] { --paper-width: 190mm; } }
-@page A3 { size: A3 landscape; }
-@page A5 { size: A5 landscape; }
+@page A3 { size: A3 landscape; margin: 8mm; }
+@page A5 { size: A5 landscape; margin: 8mm; }
 body[data-paper="A3"] { page: A3; }
 body[data-paper="A5"] { page: A5; }
-body[data-paper="A3"] .sheet { width: 400mm; }
-body[data-paper="A5"] .sheet { width: 190mm; }
+body[data-paper="A3"] .sheet { width: 420mm; min-height: 297mm; }
+body[data-paper="A5"] .sheet { width: 210mm; min-height: 148mm; }
+
 #print-map {
   height: 168mm;
   border: 1px solid #222;
   background: #cfd6c8;
 }
+/* A5 頁高只有 132 mm（148 − 16），圖面不能超過，否則被切 */
+body[data-paper="A5"] #print-map { height: 132mm; }
+
 .sheet-foot {
   display: flex;
   justify-content: space-between;
@@ -77,6 +84,24 @@ body[data-paper="A5"] .sheet { width: 190mm; }
 .desc th { background: #f3eee3; }
 body:not(.leader) .leader-only { display: none; }
 
+/* 螢幕上的第 1 頁範圍提示（列印時消失） */
+@media screen {
+  .sheet::after {
+    content: "— 以上為第 1 頁 · 列印時此處換頁 —";
+    position: absolute;
+    top: 194mm;
+    left: 8mm;
+    right: 8mm;
+    border-top: 1.5px dashed #c0564f;
+    color: #c0564f;
+    font-size: 10px;
+    padding-top: 3px;
+    pointer-events: none;
+  }
+  body[data-paper="A3"] .sheet::after { top: 281mm; }
+  body[data-paper="A5"] .sheet::after { top: 132mm; }
+}
+
 @media print {
   .no-print { display: none !important; }
   .print-app { background: #fff; }
@@ -88,5 +113,6 @@ body:not(.leader) .leader-only { display: none; }
     box-shadow: none;
   }
   #print-map { height: 168mm; }
+  body[data-paper="A5"] #print-map { height: 132mm; }
   .leaflet-control-container { display: none !important; }
 }

@@ -71,6 +71,7 @@
           <button class="tool" data-tool="clear-frame" type="button">清除範圍</button>
         </div>
         <p class="notice" id="frame-info" style="margin:8px 0 0">先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。</p>
+        <button class="ghost" id="btn-frame-from-scale" type="button" style="width:100%;margin-top:8px">📐 按比例＋紙張建框（＝圖面大小）</button>
         <div class="row" style="margin-top:8px">
           <button class="ghost" id="btn-new" type="button" style="color:#16362c;background:#efe8d8">新路線</button>
           <button class="ghost" id="btn-export" type="button" style="color:#16362c;background:#efe8d8">匯出 JSON</button>
@@ -173,7 +174,15 @@
       <div id="map" role="application" aria-label="香港地圖"></div>
       <div class="scale-lock">
         <button class="chip" id="scale-chip" type="button">比例</button>
-        <button class="chip" id="btn-scale" type="button">對齊 1:20 000</button>
+        <div class="scale-set">
+          <select id="scale-select" title="標準比例（選擇即對齊畫面）">
+            <option value="5000">1 : 5 000</option>
+            <option value="10000">1 : 10 000</option>
+            <option value="15000">1 : 15 000</option>
+            <option value="20000" selected>1 : 20 000（HM20C）</option>
+          </select>
+          <button class="chip" id="btn-scale-lock" type="button">🔒 鎖定比例</button>
+        </div>
         <button class="chip on" id="btn-grid" type="button">HK1980 方格網</button>
         <button class="chip" id="btn-fit-frame" type="button">對齊圈選範圍</button>
         <button class="chip" id="btn-locate" type="button">我的位置</button>

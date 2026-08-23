@@ -3,12 +3,15 @@ import {
   MAG_DECLINATION_WEST,
   csdiExportLayer,
   frameBounds,
+  frameSize,
   frameValid,
   fromHk80,
   gridBearing,
   gridRefs,
   landsdUrl,
+  paperAreaMeters,
   planarDistance,
+  scaleDenominator,
   tileOptions,
   toHk80,
   zoomForScale,
@@ -31,6 +34,13 @@ const layerId = saved.layer || (course?.type === "countryside" ? "countryside" :
 if (course) document.body.dataset.paper = course.paperSize || "A4";
 if (course?.playMode === "score") document.body.classList.add("score-mode");
 
+/* 設計頁鎖定／選定的標準比例，預設帶入列印（例如 LOCK 死 1:20 000）。 */
+const SCALE_PRESETS = [5000, 10000, 15000, 20000];
+const scaleSel = document.getElementById("scale");
+if (course?.scaleLock && SCALE_PRESETS.includes(Number(course.scaleLock))) {
+  scaleSel.value = String(course.scaleLock);
+}
+
 const title = document.getElementById("title");
 const meta = document.getElementById("meta");
 const descBody = document.getElementById("desc-body");
@@ -47,6 +57,7 @@ const map = L.map("print-map", {
   attributionControl: true,
   minZoom: 10,
   maxZoom: 20,
+  zoomSnap: 0, // 精確比例出圖（避免四捨五入成 1:18 990 之類）
 });
 const labels = L.tileLayer(landsdUrl("label", "tc"), tileOptions({ opacity: 0.95 }));
 const basemap = L.tileLayer(landsdUrl("basemap"), tileOptions());
@@ -78,6 +89,9 @@ function statsOf(list) {
   }
   return { dist, legs };
 }
+
+let lastScale = null; // 實際出圖比例（fit() 後更新），印在圖上
+let lastFrameNote = false;
 
 function renderSheet() {
   const list = orderedControls(course?.controls || []);
@@ -128,6 +142,12 @@ function renderSheet() {
   if (course?.meet) meta.textContent += `　·　集合 ${course.meet}`;
   if (course?.cutoff) meta.textContent += `　·　截止 ${course.cutoff}`;
   if (frameValid(course?.frame)) meta.textContent += "　·　按策劃者圈選範圍出圖";
+  if (lastScale) {
+    const sTxt = `1 : ${Math.round(lastScale).toLocaleString("en-HK")}`;
+    meta.textContent += lastFrameNote
+      ? `　·　⚠ 圈選範圍超出選定比例，已放大裝入範圍（實際 ${sTxt}）`
+      : `　·　比例 ${sTxt}`;
+  }
 
   const leader = document.getElementById("opt-coords").checked;
   document.body.classList.toggle("leader", leader);
@@ -148,11 +168,30 @@ function renderSheet() {
     .join("");
 }
 
+function effectiveScale() {
+  return scaleDenominator(map.getCenter().lat, map.getZoom());
+}
+
 function fit() {
   const list = orderedControls(course?.controls || []);
-  const scale = Number(document.getElementById("scale").value);
+  const scale = Number(scaleSel.value);
+  let frameNote = false;
   if (frameValid(course?.frame)) {
-    map.fitBounds(frameBounds(course.frame), { padding: [6, 6], animate: false });
+    /* 優先按選定（LOCK）比例出圖；判斷是否裝得下用「實際列印頁」尺寸
+       （landscape、8 mm 頁邊距），不是螢幕預覽框。裝得下就精確到該
+       比例，裝不下才退回「放大裝入範圍」，避免 1:18 990 這類怪比例。 */
+    const f = course.frame;
+    const { w, h } = frameSize(f);
+    const center = [(f.south + f.north) / 2, (f.west + f.east) / 2];
+    const z = zoomForScale(center[0], scale);
+    const area = paperAreaMeters(course.paperSize || "A4", scale);
+    const fits = w <= area.w - 40 && h <= area.h - 40; // 留約 2 mm 邊
+    if (fits) {
+      map.setView(center, z, { animate: false });
+    } else {
+      map.fitBounds(frameBounds(course.frame), { padding: [6, 6], animate: false });
+      frameNote = true;
+    }
   } else if (list.length) {
     const bounds = L.latLngBounds(list.map((c) => [c.lat, c.lng])).pad(0.35);
     map.fitBounds(bounds, { animate: false });
@@ -161,6 +200,8 @@ function fit() {
     map.setView([22.302, 114.172], 15);
   }
   map.invalidateSize();
+  lastScale = effectiveScale();
+  lastFrameNote = frameNote;
   renderSheet();
 }
 

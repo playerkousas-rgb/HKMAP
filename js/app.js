@@ -17,6 +17,7 @@ import {
   landsdUrl,
   magneticBearing,
   normalizeFrame,
+  paperAreaMeters,
   parseGridInput,
   planarDistance,
   scaleDenominator,
@@ -49,6 +50,9 @@ function emptyCourse() {
     playMode: "linear",
     paperSize: "A4",
     frameLocked: false,
+    scaleLock: 20000,
+    scaleLocked: false,
+    autoFrame: false,
     created: new Date().toISOString(),
     meet: "",
     cutoff: "",
@@ -84,6 +88,7 @@ const map = L.map("map", {
   zoom: 13,
   minZoom: 10,
   maxZoom: 20,
+  zoomSnap: 0, // 允許小數縮放，才能精確落在 1:5 000–1:20 000（LOCK 比例用）
   zoomControl: true,
   maxBounds: HK_BOUNDS,
   maxBoundsViscosity: 0.7,
@@ -108,6 +113,8 @@ const courseLayer = L.layerGroup().addTo(map);
 const measureLayer = L.layerGroup().addTo(map);
 const gridLayer = L.layerGroup().addTo(map);
 const frameLayer = L.layerGroup().addTo(map);
+const frameHandles = L.layerGroup().addTo(map);
+const framePreview = L.layerGroup().addTo(map);
 
 const draw = { start: null, temp: null };
 
@@ -254,19 +261,209 @@ function renderFrame() {
     fill: false,
     interactive: false,
   }).addTo(frameLayer);
+  addFrameHandles(frame);
   updateFrameInfo();
+}
+
+/* ---------- frame handles: 拖移中心、拉角改大小 ---------- */
+function shiftFrame(f, dLat, dLng) {
+  return { south: f.south + dLat, north: f.north + dLat, west: f.west + dLng, east: f.east + dLng };
+}
+
+function drawFramePreview(f) {
+  framePreview.clearLayers();
+  L.rectangle(frameBounds(f), {
+    color: "#d7b056",
+    weight: 2,
+    dashArray: "6 4",
+    fillOpacity: 0.08,
+    interactive: false,
+  }).addTo(framePreview);
+  const { w, h } = frameSize(f);
+  L.marker([(f.south + f.north) / 2, (f.west + f.east) / 2], {
+    icon: L.divIcon({
+      className: "frame-size-tip",
+      html: `${Math.round(w)} m × ${Math.round(h)} m`,
+      iconSize: [140, 20],
+      iconAnchor: [70, 10],
+    }),
+    interactive: false,
+  }).addTo(framePreview);
+}
+
+function commitFrameRaw(f, resized) {
+  const frame = normalizeFrame({ lat: f.south, lng: f.west }, { lat: f.north, lng: f.east });
+  const { w, h } = frameSize(frame);
+  if (w < 40 || h < 40) {
+    toast(t("範圍太小，請再拖大一點", "Frame too small"));
+    framePreview.clearLayers();
+    renderFrame();
+    return;
+  }
+  state.course.frame = frame;
+  if (resized) state.course.autoFrame = false; // 拉過角 = 自訂大小
+  framePreview.clearLayers();
+  renderFrame();
+  updateFrameInfo();
+  persist();
+}
+
+function addFrameHandles(frame) {
+  frameHandles.clearLayers();
+  framePreview.clearLayers();
+  /* 中心：拖移 */
+  const move = L.marker([(frame.south + frame.north) / 2, (frame.west + frame.east) / 2], {
+    icon: L.divIcon({ className: "frame-handle frame-move", html: "✥", iconSize: [24, 24], iconAnchor: [12, 12] }),
+    draggable: true,
+    zIndexOffset: 1000,
+    autoPan: false,
+  });
+  let ms = null;
+  let mf = null;
+  move.on("dragstart", (e) => {
+    ms = e.target.getLatLng();
+    mf = { ...state.course.frame };
+  });
+  move.on("drag", (e) => {
+    const ll = e.target.getLatLng();
+    drawFramePreview(shiftFrame(mf, ll.lat - ms.lat, ll.lng - ms.lng));
+  });
+  move.on("dragend", (e) => {
+    const ll = e.target.getLatLng();
+    commitFrameRaw(shiftFrame(mf, ll.lat - ms.lat, ll.lng - ms.lng), false);
+  });
+  move.bindTooltip(t("拖移範圍", "Move frame"), { direction: "top", opacity: 0.9 });
+  move.addTo(frameHandles);
+
+  /* 東南角：拉改大小（autoFrame 時唔可以超過圖面上限） */
+  const rs = L.marker([frame.south, frame.east], {
+    icon: L.divIcon({ className: "frame-handle frame-resize", html: "◢", iconSize: [22, 22], iconAnchor: [11, 11] }),
+    draggable: true,
+    zIndexOffset: 1000,
+    autoPan: false,
+  });
+  const previewFromSE = (ll) => {
+    const f0 = state.course.frame;
+    const aHk = toHk80(f0.north, f0.west);
+    const pHk = toHk80(ll.lat, ll.lng);
+    let wM = Math.max(40, pHk.e - aHk.e);
+    let hM = Math.max(40, aHk.n - pHk.n);
+    if (state.course.autoFrame) {
+      const a = paperAreaMeters(state.course.paperSize || "A4", currentScaleLock());
+      wM = Math.min(wM, Math.max(40, a.w - 40));
+      hM = Math.min(hM, Math.max(40, a.h - 40));
+    }
+    const seHk = fromHk80(aHk.e + wM, aHk.n - hM);
+    return { south: seHk.lat, west: f0.west, north: f0.north, east: seHk.lng };
+  };
+  rs.on("drag", (e) => drawFramePreview(previewFromSE(e.target.getLatLng())));
+  rs.on("dragend", (e) => commitFrameRaw(previewFromSE(e.target.getLatLng()), true));
+  rs.bindTooltip(t("拉角改大小", "Resize frame"), { direction: "left", opacity: 0.9 });
+  rs.addTo(frameHandles);
+}
+
+function fmtLen(m) {
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+/** 圈選範圍超出（紙張＋比例）時，建議最接近現狀、能精確出圖的組合。 */
+function fitSuggestion(w, h) {
+  const papers = ["A5", "A4", "A3"];
+  const scales = [5000, 10000, 15000, 20000];
+  const curP = Math.max(0, papers.indexOf(state.course.paperSize || "A4"));
+  const curS = Math.max(0, scales.indexOf(currentScaleLock()));
+  let best = null;
+  let bestCost = Infinity;
+  papers.forEach((p, pi) => {
+    scales.forEach((s, si) => {
+      const a = paperAreaMeters(p, s);
+      if (w <= a.w - 40 && h <= a.h - 40) {
+        // 換比例（放大分母）優於換紙張；兩者都越少改越好
+        const cost = Math.abs(pi - curP) * 10 + Math.max(0, si - curS) * 3;
+        if (cost < bestCost) {
+          bestCost = cost;
+          best = { p, s };
+        }
+      }
+    });
+  });
+  if (!best) return null;
+  return best; // { p, s }
+}
+
+/** 方式 1：按（鎖定）比例＋紙張建出「＝圖面大小」嘅框，可以拖移／拉角。 */
+function autoFrameFromScalePaper(keepCenter) {
+  const scale = currentScaleLock();
+  const paper = state.course.paperSize || "A4";
+  const a = paperAreaMeters(paper, scale);
+  // 留 60 m 邊（比 fit 檢查嘅 40 m 多啲，避免浮點誤差誤報「超出」）
+  const w = Math.max(40, a.w - 60);
+  const h = Math.max(40, a.h - 60);
+  const f = state.course.frame;
+  const c =
+    keepCenter && frameValid(f)
+      ? { lat: (f.south + f.north) / 2, lng: (f.west + f.east) / 2 }
+      : map.getCenter();
+  const hk = toHk80(c.lat, c.lng);
+  const sw = fromHk80(hk.e - w / 2, hk.n - h / 2);
+  const ne = fromHk80(hk.e + w / 2, hk.n + h / 2);
+  state.course.frame = { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng };
+  state.course.autoFrame = true;
+  renderFrame();
+  updateFrameInfo();
+  persist();
+}
+
+/** 方式 2：此範圍喺呢張紙上，邊啲標準比例放得曬（分母由細到粗）。 */
+function fitScalesForFrame(w, h, paper) {
+  return SCALE_PRESETS.filter((s) => {
+    const a = paperAreaMeters(paper, s);
+    return w <= a.w - 40 && h <= a.h - 40;
+  });
 }
 
 function updateFrameInfo() {
   const el = document.getElementById("frame-info");
   if (!el) return;
   const frame = state.course.frame;
+  const scale = currentScaleLock();
+  const paper = state.course.paperSize || "A4";
+  const area = paperAreaMeters(paper, scale);
+  const maxTxt = `${fmtLen(area.w)} × ${fmtLen(area.h)}`;
   if (!frameValid(frame)) {
-    el.textContent = "先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。";
+    el.innerHTML =
+      `先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。<br>` +
+      `<strong>${paper} @ ${scaleLabel(scale)}</strong> 圖面最大約 <strong>${maxTxt}</strong>。` +
+      (state.course.scaleLocked
+        ? ` 或按 <b>📐 按比例＋紙張建框</b> 直接建出。`
+        : `，圈選時可參考。`);
     return;
   }
   const { w, h } = frameSize(frame);
-  el.innerHTML = `已圈選 <strong>${Math.round(w)} m × ${Math.round(h)} m</strong>。可再拖一次重畫。列印會按此範圍出圖。`;
+  const autoTag = state.course.autoFrame ? `（自動框）` : "";
+  let html = `已圈選 <strong>${Math.round(w)} m × ${Math.round(h)} m</strong>${autoTag}。✥ 可拖移、◢ 可拉角改大小。`;
+  const fits = fitScalesForFrame(w, h, paper);
+  if (fits.includes(scale)) {
+    const others = fits.filter((s) => s !== scale);
+    html += ` ✔ <strong>${scaleLabel(scale)}</strong> 放得曬入 ${paper}，可按此比例精確出圖`;
+    if (others.length) {
+      html += `（其他放得下：${others.map(scaleLabel).join("、")}）`;
+    }
+  } else if (fits.length) {
+    const s = fits[0]; // 放得曬所需最小分母
+    html += ` <span style="color:#9a5b00">超出 ${paper} @ ${scaleLabel(scale)}（最大約 ${maxTxt}）。要放得曬入 ${paper}，比例要用 <strong>${scaleLabel(s)}</strong> 或更大分母　</span>` +
+      `<button class="ghost" data-apply-scale="${s}" type="button" style="font-size:11px;padding:3px 8px">改用 ${scaleLabel(s)}</button>`;
+  } else {
+    const best = fitSuggestion(w, h);
+    if (!best) {
+      html += ` <span style="color:#9a5b00">${paper} 任何標準比例都放唔下（最大 ${maxTxt}），請縮小範圍。</span>`;
+    } else {
+      const a = paperAreaMeters(best.p, best.s);
+      html += ` <span style="color:#9a5b00">${paper} 任何標準比例都放唔下（最大 ${maxTxt}）。建議 ${best.p} + ${scaleLabel(best.s)}（最大約 ${fmtLen(a.w)} × ${fmtLen(a.h)}）　</span>` +
+        `<button class="ghost" data-apply-paper="${best.p}" data-apply-scale="${best.s}" type="button" style="font-size:11px;padding:3px 8px">改用 ${best.p} + ${scaleLabel(best.s)}</button>`;
+    }
+  }
+  el.innerHTML = html;
 }
 
 function fitFrame() {
@@ -279,6 +476,7 @@ function fitFrame() {
 
 function clearFrame() {
   state.course.frame = null;
+  state.course.autoFrame = false;
   draw.start = null;
   draw.temp = null;
   renderFrame();
@@ -294,6 +492,7 @@ function commitFrame(a, b) {
     return;
   }
   state.course.frame = frame;
+  state.course.autoFrame = false; // 手動圈選 = 自訂範圍
   draw.start = null;
   draw.temp = null;
   renderFrame();
@@ -417,6 +616,7 @@ function renderMeasure() {
 /* ---------- events ---------- */
 map.on("mousedown", (e) => {
   if (state.tool !== "frame" || e.originalEvent.button) return;
+  if (e.originalEvent.target.closest(".frame-handle")) return; // 手柄：拖移／拉角，唔好另起新框
   L.DomEvent.stop(e);
   map.dragging.disable();
   draw.start = e.latlng;
@@ -455,6 +655,7 @@ map.on("click", (e) => {
 
 map.on("moveend zoomend", () => {
   renderGrid();
+  resnapScale();
   updateScaleChip();
 });
 
@@ -469,10 +670,89 @@ function updateReadout(ll) {
   `;
 }
 
+const SCALE_PRESETS = [5000, 10000, 15000, 20000];
+
+function currentScaleLock() {
+  const s = Number(state.course.scaleLock);
+  return SCALE_PRESETS.includes(s) ? s : 20000;
+}
+
+function formatScale(n) {
+  return Math.round(n).toLocaleString("en-HK");
+}
+
+function scaleLabel(s) {
+  return `1 : ${formatScale(s)}`;
+}
+
+function syncScaleSelect() {
+  document.getElementById("scale-select").value = String(currentScaleLock());
+}
+
+function setZoomControls(on) {
+  map.zoomControl[on ? "enable" : "disable"]();
+  map.scrollWheelZoom[on ? "enable" : "disable"]();
+  map.boxZoom[on ? "enable" : "disable"]();
+  map.doubleClickZoom[on ? "enable" : "disable"]();
+  map.touchZoom[on ? "enable" : "disable"]();
+  map.keyboard[on ? "enable" : "disable"]();
+}
+
+function syncScaleLockButton() {
+  const btn = document.getElementById("btn-scale-lock");
+  btn.classList.toggle("on", state.course.scaleLocked);
+  btn.textContent = state.course.scaleLocked ? "🔓 解鎖比例" : "🔒 鎖定比例";
+}
+
+function lockScale(silent) {
+  const scale = currentScaleLock();
+  state.course.scaleLocked = true;
+  setZoomControls(false);
+  map.setZoom(zoomForScale(map.getCenter().lat, scale), { animate: false });
+  syncScaleLockButton();
+  updateScaleChip();
+  /* 方式 1：LOCK 比例後自動建出「＝圖面大小」嘅框（如果仲未圈） */
+  let created = false;
+  if (!frameValid(state.course.frame)) {
+    autoFrameFromScalePaper(false);
+    created = true;
+  }
+  if (!silent) persist();
+  return created;
+}
+
+function unlockScale() {
+  state.course.scaleLocked = false;
+  setZoomControls(true);
+  syncScaleLockButton();
+  updateScaleChip();
+  persist();
+}
+
+/** 鎖定比例時，任何移動／縮放後都把畫面拉回正確縮放，比例不會飄（例如 1:18 990）。 */
+let resnapping = false;
+function resnapScale() {
+  if (!state.course.scaleLocked) return;
+  const target = zoomForScale(map.getCenter().lat, currentScaleLock());
+  if (resnapping || Math.abs(map.getZoom() - target) < 1e-3) return;
+  resnapping = true;
+  map.setZoom(target, { animate: false });
+  resnapping = false;
+}
+
 function updateScaleChip() {
-  const c = map.getCenter();
-  const scale = scaleDenominator(c.lat, map.getZoom());
-  document.getElementById("scale-chip").textContent = `比例 1 : ${Math.round(scale).toLocaleString("en-HK")}`;
+  const el = document.getElementById("scale-chip");
+  if (state.course.scaleLocked) {
+    el.textContent = `🔒 1 : ${formatScale(currentScaleLock())}`;
+    el.classList.add("on");
+    el.title = t("比例已鎖定，縮放已停用；平移仍可", "Scale locked; zoom disabled, panning still works");
+  } else {
+    const c = map.getCenter();
+    const scale = scaleDenominator(c.lat, map.getZoom());
+    el.textContent = `比例 1 : ${formatScale(scale)}`;
+    el.classList.remove("on");
+    el.title = "";
+  }
 }
 
 function setTool(tool) {
@@ -640,21 +920,71 @@ function exportCourse() {
   a.click();
 }
 
+function exportGpx() {
+  const esc = (s) =>
+    String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const list = orderedControls();
+  const wpts = list
+    .map((c) => {
+      const what = c.kind === "start" ? "起點" : c.kind === "finish" ? "終點" : "檢查點";
+      const desc = [what, c.name, c.clue].filter(Boolean).join(" — ");
+      return [
+        `  <wpt lat="${c.lat.toFixed(6)}" lon="${c.lng.toFixed(6)}">`,
+        `    <name>${esc(c.code)}</name>`,
+        `    <desc>${esc(desc)}</desc>`,
+        `  </wpt>`,
+      ].join("\n");
+    })
+    .join("\n");
+  const rtepts = list
+    .map((c) => `    <rtept lat="${c.lat.toFixed(6)}" lon="${c.lng.toFixed(6)}"><name>${esc(c.code)}</name></rtept>`)
+    .join("\n");
+  const gpx = [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<gpx version="1.1" creator="Scout System" xmlns="http://www.topografix.com/GPX/1/1">`,
+    `  <metadata>`,
+    `    <name>${esc(state.course.name)}</name>`,
+    `    <desc>${esc(state.course.type === "urban" ? "城市定向" : "野外／郊遊定向")}</desc>`,
+    `  </metadata>`,
+    wpts,
+    `  <rte>`,
+    `    <name>${esc(state.course.name)}</name>`,
+    rtepts,
+    `  </rte>`,
+    `</gpx>`,
+  ].join("\n") + "\n";
+  const blob = new Blob([gpx], { type: "application/gpx+xml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${state.course.name || "scout-course"}.gpx`;
+  a.click();
+}
+
 function importCourse(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
       if (!data || !Array.isArray(data.controls)) throw new Error("format");
+      const wasLocked = state.course.scaleLocked;
       state.course = { ...emptyCourse(), ...data, system: "Scout System" };
+      if (!SCALE_PRESETS.includes(Number(state.course.scaleLock))) state.course.scaleLock = 20000;
+      if (wasLocked && !state.course.scaleLocked) setZoomControls(true);
       renderCourse();
       renderSidebar();
+      syncScaleSelect();
       persist();
       if (state.course.controls[0]) {
         map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
       }
       renderFrame();
       if (frameValid(state.course.frame)) fitFrame();
+      if (state.course.scaleLocked) {
+        lockScale(true);
+        toast(t(`已匯入路線（比例已鎖定 ${scaleLabel(currentScaleLock())}）`, `Imported (scale locked at ${scaleLabel(currentScaleLock())})`));
+        return;
+      }
+      syncScaleLockButton();
       toast(t("已匯入路線", "Course imported"));
     } catch {
       toast(t("檔案格式不正確", "Invalid file"));
@@ -674,6 +1004,11 @@ function searchPlaces(q) {
 
 /* ---------- sample ---------- */
 function loadSample(kind) {
+  const wasLocked = state.course.scaleLocked;
+  if (wasLocked) {
+    state.course.scaleLocked = false;
+    setZoomControls(true);
+  }
   if (kind === "urban") {
     state.layer = "hm20c";
     state.course = {
@@ -711,14 +1046,18 @@ function loadSample(kind) {
       ],
       frame: { south: 22.3935, west: 114.3165, north: 22.4035, east: 114.332 },
     };
-    map.setView([22.398, 114.324], 15);
+      map.setView([22.398, 114.324], 15);
   }
-    applyBasemap();
-    renderCourse();
-    renderFrame();
-    renderSidebar();
-    persist();
-    if (frameValid(state.course.frame)) fitFrame();
+  state.course.scaleLock = state.course.scaleLock || 20000;
+  state.course.scaleLocked = false;
+  syncScaleSelect();
+  syncScaleLockButton();
+  applyBasemap();
+  renderCourse();
+  renderFrame();
+  renderSidebar();
+  persist();
+  if (frameValid(state.course.frame)) fitFrame();
   }
 
 /* ---------- boot ---------- */
@@ -750,7 +1089,13 @@ function bind() {
   });
   document.getElementById("course-type").addEventListener("change", (e) => { state.course.type = e.target.value; persist(); });
   document.getElementById("play-mode").addEventListener("change", (e) => { state.course.playMode = e.target.value; renderSidebar(); renderCourse(); persist(); });
-  document.getElementById("paper-size").addEventListener("change", (e) => { state.course.paperSize = e.target.value; persist(); });
+  document.getElementById("paper-size").addEventListener("change", (e) => {
+    state.course.paperSize = e.target.value;
+    /* 方式 1：LOCK 住＋自動框 → 框隨紙張調大小；方式 2：提示放得曬比例 */
+    if (state.course.scaleLocked && state.course.autoFrame) autoFrameFromScalePaper(true);
+    else updateFrameInfo();
+    persist();
+  });
   document.getElementById("btn-lock-frame").addEventListener("click", () => {
     if (!frameValid(state.course.frame)) { toast(t("請先在地圖拖出設計範圍", "Draw a frame first")); setTool("frame"); return; }
     state.course.frameLocked = !state.course.frameLocked;
@@ -787,10 +1132,61 @@ function bind() {
     renderGrid();
   });
   document.getElementById("btn-fit-frame").addEventListener("click", fitFrame);
-  document.getElementById("btn-scale").addEventListener("click", () => {
-    const z = zoomForScale(map.getCenter().lat, 20000);
-    map.setZoom(z);
-    toast(t("已對齊約 1:20 000（HM20C 比例）", "Locked near 1:20 000"));
+  document.getElementById("btn-frame-from-scale").addEventListener("click", () => {
+    autoFrameFromScalePaper(true);
+    map.fitBounds(frameBounds(state.course.frame), { padding: [28, 28], animate: true });
+    toast(
+      t(`已按 ${scaleLabel(currentScaleLock())}＋${state.course.paperSize || "A4"} 建框（✥ 拖移、◢ 拉角縮細）`, `Frame sized to ${scaleLabel(currentScaleLock())} + ${state.course.paperSize || "A4"}`),
+    );
+  });
+  /* frame-info 入面嘅「改用…」一鍵套用 */
+  document.getElementById("frame-info").addEventListener("click", (e) => {
+    const s = e.target.closest("[data-apply-scale]");
+    if (s) {
+      const sel = document.getElementById("scale-select");
+      sel.value = s.dataset.applyScale;
+      sel.dispatchEvent(new Event("change"));
+      return;
+    }
+    const p = e.target.closest("[data-apply-paper]");
+    if (p) {
+      const sel = document.getElementById("paper-size");
+      sel.value = p.dataset.applyPaper;
+      if (p.dataset.applyScale) {
+        const ss = document.getElementById("scale-select");
+        ss.value = p.dataset.applyScale;
+        ss.dispatchEvent(new Event("change"));
+      }
+      sel.dispatchEvent(new Event("change"));
+    }
+  });
+  document.getElementById("scale-select").addEventListener("change", (e) => {
+    const s = Number(e.target.value);
+    if (!SCALE_PRESETS.includes(s)) return;
+    state.course.scaleLock = s;
+    map.setZoom(zoomForScale(map.getCenter().lat, s), { animate: false });
+    /* 方式 1：LOCK 住＋自動框 → 框隨比例調大小 */
+    if (state.course.scaleLocked && state.course.autoFrame) autoFrameFromScalePaper(true);
+    else updateFrameInfo();
+    toast(
+      state.course.scaleLocked
+        ? t(`已鎖定 ${scaleLabel(s)}（縮放停用）`, `Locked at ${scaleLabel(s)}`)
+        : t(`已對齊約 ${scaleLabel(s)}`, `Aligned near ${scaleLabel(s)}`)
+    );
+    persist();
+  });
+  document.getElementById("btn-scale-lock").addEventListener("click", () => {
+    if (state.course.scaleLocked) {
+      unlockScale();
+      toast(t("比例已解鎖，可自由縮放", "Scale unlocked"));
+    } else {
+      const created = lockScale();
+      toast(
+        created
+          ? t(`已 LOCK 死 ${scaleLabel(currentScaleLock())}，並建出圖面框（✥ 拖移、◢ 拉角）`, `Locked at ${scaleLabel(currentScaleLock())}, frame created`)
+          : t(`已 LOCK 死 ${scaleLabel(currentScaleLock())}：縮放停用，比例不會再飄`, `Scale locked at ${scaleLabel(currentScaleLock())}`),
+      );
+    }
   });
   document.getElementById("btn-locate").addEventListener("click", () => {
     if (!navigator.geolocation) return toast("此瀏覽器不支援定位");
@@ -831,11 +1227,16 @@ function bind() {
   });
   document.getElementById("btn-new").addEventListener("click", () => {
     if (!confirm(t("開新路線？未匯出的檢查點會留在本機暫存。", "Start a new course?"))) return;
+    const wasLocked = state.course.scaleLocked;
     state.course = emptyCourse();
     state.selectedId = null;
+    if (wasLocked) setZoomControls(true);
+    syncScaleSelect();
+    syncScaleLockButton();
     renderCourse();
     renderFrame();
     renderSidebar();
+    updateScaleChip();
     persist();
   });
   document.getElementById("btn-sample-u").addEventListener("click", () => loadSample("urban"));
@@ -914,7 +1315,23 @@ function boot() {
   bind();
   applyBasemap();
   renderCourse();
+  renderFrame();
   renderSidebar();
+  syncScaleSelect();
+  /* 還原上次視圖（有框對框，無框對第一個點） */
+  if (frameValid(state.course.frame)) {
+    map.fitBounds(frameBounds(state.course.frame), { padding: [24, 24], animate: false });
+  } else if (state.course.controls[0]) {
+    map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
+  }
+  if (state.course.scaleLocked) {
+    const created = lockScale(true);
+    toast(
+      created
+        ? t(`比例已鎖定 ${scaleLabel(currentScaleLock())}，並建出圖面框`, `Scale locked at ${scaleLabel(currentScaleLock())}, frame created`)
+        : t(`比例已鎖定 ${scaleLabel(currentScaleLock())}`, `Scale locked at ${scaleLabel(currentScaleLock())}`),
+    );
+  }
   updateScaleChip();
   updateReadout(L.latLng(HK_CENTER[0], HK_CENTER[1]));
   document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
