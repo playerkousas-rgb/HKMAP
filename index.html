@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scout System · 香港定向地圖</title>
+  <meta name="description" content="童軍城市定向／野外定向設計台。連結地政總署 HM20C 地形圖 API 與漁護署郊遊圖層。© Scout System" />
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img src="assets/mark.svg" alt="" />
+        <div>
+          <h1>SCOUT SYSTEM</h1>
+          <small>香港定向地圖 · HM20C / 郊遊圖</small>
+        </div>
+      </div>
+      <div class="basemaps" role="tablist" aria-label="底圖">
+        <button type="button" class="active" data-layer="hm20c">HM20C 地形圖</button>
+        <button type="button" data-layer="countryside">郊遊圖</button>
+        <button type="button" data-layer="imagery">航空照片</button>
+      </div>
+      <div class="search">
+        <span class="ico">⌕</span>
+        <input id="q" type="search" placeholder="搜尋地點、營地、郊遊熱點…" autocomplete="off" />
+        <div id="suggest" class="suggest"></div>
+      </div>
+      <div class="top-actions">
+        <button class="ghost" id="btn-lang" type="button">EN</button>
+        <button class="ghost" id="btn-about" type="button">地圖來源</button>
+        <button class="solid" id="btn-print" type="button">列印路線</button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <section class="panel">
+        <h2>活動</h2>
+        <label class="field">路線名稱
+          <input id="course-name" maxlength="80" />
+        </label>
+        <label class="field">類型
+          <select id="course-type">
+            <option value="urban">城市定向</option>
+            <option value="countryside">野外／郊遊定向</option>
+          </select>
+        </label>
+        <div class="tools">
+          <button class="tool active" data-tool="pan" type="button">平移</button>
+          <button class="tool" data-tool="start" type="button">△ 起點</button>
+          <button class="tool" data-tool="control" type="button">○ 檢查點</button>
+          <button class="tool" data-tool="finish" type="button">◎ 終點</button>
+          <button class="tool" data-tool="measure" type="button">量距</button>
+          <button class="tool" data-tool="delete" type="button">刪除</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost" id="btn-new" type="button" style="color:#16362c;background:#efe8d8">新路線</button>
+          <button class="ghost" id="btn-export" type="button" style="color:#16362c;background:#efe8d8">匯出 JSON</button>
+          <button class="ghost" id="btn-import" type="button" style="color:#16362c;background:#efe8d8">匯入</button>
+        </div>
+        <input id="file-import" type="file" accept="application/json,.json" hidden />
+        <div class="row" style="margin-top:8px">
+          <button class="ghost" id="btn-sample-u" type="button" style="color:#16362c;background:#efe8d8">示範：城市</button>
+          <button class="ghost" id="btn-sample-c" type="button" style="color:#16362c;background:#efe8d8">示範：郊遊</button>
+        </div>
+        <div class="stats">
+          <div class="stat"><span>路線長度</span><strong id="stat-dist">0 m</strong></div>
+          <div class="stat"><span>檢查點</span><strong id="stat-n">0</strong></div>
+          <div class="stat"><span>路段</span><strong id="stat-legs">0</strong></div>
+          <div class="stat"><span>磁偏角（約）</span><strong id="stat-mag">3.1°W</strong></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>檢查點</h2>
+        <div id="ctrl-list" class="ctrl-list"></div>
+        <div id="editor" hidden>
+          <label class="field">編號 / 代碼<input id="ed-code" /></label>
+          <label class="field">名稱<input id="ed-name" /></label>
+          <label class="field">現場提示<textarea id="ed-clue" placeholder="例如：公園入口告示板、標距柱 M012、石橋北端"></textarea></label>
+          <label class="field">領袖備註<textarea id="ed-note"></textarea></label>
+        </div>
+      </section>
+
+      <section class="panel" id="sheet-hm20c">
+        <h2>HM20C 圖幅</h2>
+        <div id="hm20c-grid" class="sheets"></div>
+        <p class="notice" style="margin:8px 0 0">紙本 HM20C 共 16 幅（幅 1 為圖例）。此處以官方地形圖 API 飛往各幅覆蓋範圍，方便對照童軍山藝／定向教材。</p>
+      </section>
+
+      <section class="panel" id="sheet-cm" hidden>
+        <h2>郊區地圖（5 幅）</h2>
+        <div id="cm-grid" class="sheets five"></div>
+      </section>
+
+      <section class="panel">
+        <h2>前往方格坐標</h2>
+        <label class="field">HK1980 / 6 位或 8 位
+          <input id="grid-input" placeholder="例如 835 817　或　83541 81726" />
+        </label>
+        <button class="solid" id="btn-goto" type="button" style="width:100%">前往</button>
+        <button class="tool" data-tool="clear-measure" type="button" style="width:100%;margin-top:6px">清除量距</button>
+      </section>
+
+      <p class="notice">
+        © Scout System　底圖 © 香港特別行政區政府地政總署　郊遊圖層 © 漁農自然護理署／空間數據共享平台。
+        使用須遵守<a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">地政總署 Map API 條款</a>。
+        紙本地圖版權仍屬政府，本系統不複製紙本圖面。
+      </p>
+    </aside>
+
+    <main class="mapwrap">
+      <div id="map" role="application" aria-label="香港地圖"></div>
+      <div class="scale-lock">
+        <button class="chip" id="scale-chip" type="button">比例</button>
+        <button class="chip" id="btn-scale" type="button">對齊 1:20 000</button>
+        <button class="chip on" id="btn-grid" type="button">HK1980 方格網</button>
+        <button class="chip" id="btn-locate" type="button">我的位置</button>
+      </div>
+      <div class="coord-readout" id="readout"></div>
+      <aside class="credit">
+        <strong>Map from Lands Department</strong><br />
+        Aerial Photograph from Lands Department<br />
+        郊遊圖層：漁農自然護理署（CSDI）<br />
+        © Scout System
+      </aside>
+    </main>
+  </div>
+
+  <section class="print-sheet">
+    <div id="print-body"></div>
+  </section>
+
+  <div id="terms" class="modal" role="dialog" aria-labelledby="terms-title">
+    <div class="dialog">
+      <h3 id="terms-title">使用地政總署地圖 API</h3>
+      <p>Scout System 透過官方 <strong>LandsD Map API</strong> 顯示香港地形圖與航空照片，方便童軍設計城市定向及郊野定向。圖磚版權屬香港特區政府地政總署。</p>
+      <p>按照署方規定，地圖畫面已標示 Lands Department 版權聲明。請勿大量短時間呼叫 API。使用前請閱讀
+        <a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">條款及知識產權告示</a>。
+      </p>
+      <p>紙本 <strong>HM20C</strong> 與<strong>郊區地圖</strong>仍是山藝考核的標準教材；本系統是設計與預習工具，並非紙本地圖的複製品。</p>
+      <p style="font-size:12px;color:#5d6b64">© Scout System</p>
+      <div class="actions">
+        <button class="solid" id="terms-ok" type="button">我已閱讀並同意</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="about" class="modal" role="dialog">
+    <div class="dialog">
+      <h3>已連結的政府地圖</h3>
+      <p><strong>HM20C 地形圖</strong> — 地政總署測繪處 1:20 000 彩色地形圖，童軍及遠足常用。紙本沒有公開圖磚；本系統連接官方
+        <a href="https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI" target="_blank" rel="noopener">Topographic Map API</a>
+        （數碼地形圖，含等高線、道路、建築物、小徑），並提供 16 幅圖幅索引飛往對應範圍。</p>
+      <p><strong>郊遊圖／郊區地圖</strong> — 官方紙本共 5 幅。本系統「郊遊圖」模式以同一套官方地形圖為底，疊加漁護署開放數據：郊野公園、遠足徑、標距柱
+        （<a href="https://portal.csdi.gov.hk/" target="_blank" rel="noopener">CSDI 空間數據共享平台</a>）。</p>
+      <p><strong>坐標</strong> — 即時顯示 WGS84 與香港 1980 方格網（EPSG:2326），以及 1 km / 100 m / 10 m 方格，方便對照 HM20C 圖邊數字與指南針方位（方格北／磁北）。</p>
+      <p>紙本地圖產品：
+        <a href="https://www.landsd.gov.hk/tc/survey-mapping/mapping/multi-scale-topographic-mapping/paper-map.html" target="_blank" rel="noopener">HM20C</a> ·
+        <a href="https://www.landsd.gov.hk/tc/survey-mapping/mapping/thematic-mapping.html" target="_blank" rel="noopener">郊區地圖</a> ·
+        <a href="https://www.map.gov.hk/" target="_blank" rel="noopener">地理資訊地圖</a>
+      </p>
+      <div class="actions">
+        <button class="solid" id="about-close" type="button">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
