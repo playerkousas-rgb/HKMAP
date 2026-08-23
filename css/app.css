@@ -446,37 +446,43 @@ label.field textarea { min-height: 60px; resize: vertical; }
   background: transparent !important;
   border: 0 !important;
 }
-.or-icon div {
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0,0,0,.35);
+.iof-start {
+  width: 24px;
+  height: 22px;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'><path d='M12 2 L22 20 H2 Z' fill='none' stroke='%23d00070' stroke-width='2.4' stroke-linejoin='round'/></svg>") center/contain no-repeat;
 }
-.or-start {
-  width: 0; height: 0;
-  border-left: 13px solid transparent;
-  border-right: 13px solid transparent;
-  border-bottom: 22px solid var(--start);
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,.3));
+.iof-ctrl {
+  position: relative;
+  width: 56px;
+  height: 36px;
 }
-.or-ctrl {
-  width: 28px; height: 28px;
-  border: 3px solid var(--ctrl);
+.iof-ctrl .ring {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 32px;
+  height: 32px;
+  border: 3px solid #d00070;
   border-radius: 50%;
-  background: rgba(109,40,217,.18);
-  color: var(--ctrl);
-  font-size: 11px;
-  font-weight: 800;
-  display: grid; place-items: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  background: transparent;
+  box-sizing: border-box;
 }
-.or-finish {
-  width: 28px; height: 28px;
-  border: 3px solid var(--finish);
+.iof-ctrl .lab {
+  position: absolute;
+  left: 34px;
+  top: 0;
+  font: 800 13px/1.1 Outfit, "Noto Sans TC", sans-serif;
+  color: #d00070;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+}
+.iof-finish {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #d00070;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 3px #fff, 0 2px 6px rgba(0,0,0,.25);
-  background: rgba(180,35,24,.15);
+  box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 7px #d00070;
+  background: transparent;
+  box-sizing: border-box;
 }
 
 .toast {

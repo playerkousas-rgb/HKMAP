@@ -5,7 +5,6 @@ import {
   HK_BOUNDS,
   HK_CENTER,
   HM20C_SHEETS,
-  LINKS,
   MAG_DECLINATION_WEST,
   csdiExportLayer,
   formatDeg,
@@ -21,12 +20,7 @@ import {
   toHk80,
   zoomForScale,
 } from "./hkgeo.js";
-import {
-  compressImage,
-  ensureIds,
-  listCheckins,
-  publishCourse,
-} from "./urban.js";
+import { drawOverprint } from "./overprint.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
@@ -46,7 +40,6 @@ function emptyCourse() {
   return {
     version: 1,
     system: "Scout System",
-    id: uid(),
     name: "未命名定向路線",
     type: "urban",
     created: new Date().toISOString(),
@@ -211,31 +204,6 @@ function renderGrid() {
 }
 
 /* ---------- course graphics ---------- */
-function controlIcon(ctrl, index) {
-  if (ctrl.kind === "start") {
-    return L.divIcon({
-      className: "or-icon",
-      html: `<div class="or-start" title="起點"></div>`,
-      iconSize: [26, 22],
-      iconAnchor: [13, 20],
-    });
-  }
-  if (ctrl.kind === "finish") {
-    return L.divIcon({
-      className: "or-icon",
-      html: `<div class="or-finish" title="終點"></div>`,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-    });
-  }
-  return L.divIcon({
-    className: "or-icon",
-    html: `<div class="or-ctrl">${ctrl.code || index}</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
-}
-
 function orderedControls() {
   const starts = state.course.controls.filter((c) => c.kind === "start");
   const mids = state.course.controls.filter((c) => c.kind === "control");
@@ -253,40 +221,24 @@ function nextCode() {
 }
 
 function renderCourse() {
-  courseLayer.clearLayers();
-  const list = orderedControls();
-  if (list.length >= 2) {
-    const latlngs = list.map((c) => [c.lat, c.lng]);
-    L.polyline(latlngs, {
-      color: "#6d28d9",
-      weight: 3,
-      opacity: 0.75,
-      dashArray: "8 6",
-    }).addTo(courseLayer);
-  }
-  list.forEach((ctrl, i) => {
-    const marker = L.marker([ctrl.lat, ctrl.lng], {
-      draggable: true,
-      icon: controlIcon(ctrl, i),
-      riseOnHover: true,
-    }).addTo(courseLayer);
-    marker.on("dragend", () => {
-      const p = marker.getLatLng();
-      ctrl.lat = p.lat;
-      ctrl.lng = p.lng;
+  drawOverprint(courseLayer, state.course.controls, {
+    draggable: true,
+    lines: true,
+    onDrag(ctrl, ll) {
+      ctrl.lat = ll.lat;
+      ctrl.lng = ll.lng;
       renderCourse();
       renderSidebar();
       persist();
-    });
-    marker.on("click", (ev) => {
-      L.DomEvent.stopPropagation(ev);
+    },
+    onClick(ctrl) {
       if (state.tool === "delete") {
         removeControl(ctrl.id);
         return;
       }
       state.selectedId = ctrl.id;
       renderSidebar();
-    });
+    },
   });
   renderPrintTable();
 }
@@ -309,8 +261,6 @@ function addControl(lat, lng, kind) {
     name: kind === "start" ? "起點" : kind === "finish" ? "終點" : "",
     clue: "",
     note: "",
-    photo: "",
-    secret: uid(),
   };
   state.course.controls.push(ctrl);
   state.selectedId = ctrl.id;
@@ -482,34 +432,7 @@ function renderSidebar() {
     document.getElementById("ed-name").value = sel.name;
     document.getElementById("ed-clue").value = sel.clue;
     document.getElementById("ed-note").value = sel.note;
-    const prev = document.getElementById("ed-photo-preview");
-    prev.innerHTML = sel.photo
-      ? `<img src="${sel.photo}" alt="" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px" />`
-      : "未有照片。城市定向建議拍下燈柱、牌匾或雕塑。";
   }
-  renderCheckinLog();
-}
-
-function renderCheckinLog() {
-  const box = document.getElementById("checkin-log");
-  if (!box || !state.course.id) return;
-  const rows = listCheckins(state.course.id);
-  if (!rows.length) {
-    box.innerHTML = `<p class="notice" style="margin:8px 0 0">尚未有打卡。列印 QR 後用手機掃描測試。</p>`;
-    return;
-  }
-  const byTeam = {};
-  rows.forEach((r) => {
-    byTeam[r.team] = byTeam[r.team] || [];
-    byTeam[r.team].push(r);
-  });
-  box.innerHTML = `<h2 style="margin:12px 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--moss)">本機打卡紀錄</h2>` +
-    Object.entries(byTeam)
-      .map(([team, items]) => {
-        const codes = items.map((i) => i.code).join(" → ");
-        return `<div class="notice"><strong>${team}</strong>　${items.length} 站　${codes}</div>`;
-      })
-      .join("");
 }
 
 function renderPrintTable() {
@@ -550,15 +473,10 @@ function renderPrintTable() {
 
 /* ---------- persistence ---------- */
 function persist() {
-  ensureIds(state.course);
   const all = loadAll();
   all.current = state.course;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-    publishCourse(state.course);
-  } catch {
-    toast(t("本機空間不足，可刪減照片後再試。", "Storage full — remove some photos."));
-  }
+  all.layer = state.layer;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
 }
 
 function loadAll() {
@@ -706,20 +624,6 @@ function bind() {
       persist();
     });
   });
-  document.getElementById("ed-photo").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    e.target.value = "";
-    const sel = state.course.controls.find((c) => c.id === state.selectedId);
-    if (!file || !sel) return;
-    try {
-      sel.photo = await compressImage(file);
-      persist();
-      renderSidebar();
-      toast(t("已加入照片提示", "Photo clue added"));
-    } catch {
-      toast(t("未能讀取相片", "Could not read photo"));
-    }
-  });
   document.getElementById("btn-grid").addEventListener("click", () => {
     state.gridOn = !state.gridOn;
     document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
@@ -746,7 +650,10 @@ function bind() {
       () => toast(t("未能取得位置", "Location unavailable"))
     );
   });
-  document.getElementById("btn-print").addEventListener("click", () => window.print());
+  document.getElementById("btn-print").addEventListener("click", () => {
+    persist();
+    window.location.href = "print.html";
+  });
   document.getElementById("btn-export").addEventListener("click", exportCourse);
   document.getElementById("btn-gpx").addEventListener("click", exportGpx);
   ["course-meet", "course-cutoff", "course-sos"].forEach((id) => {

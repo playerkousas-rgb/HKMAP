@@ -210,12 +210,9 @@ export const EHKG_META = {
 };
 
 export const FEATURE_IDEAS = [
-  { id: "card", title: "控制卡＋方位／距離表", for: "兩者", note: "列印給隊員填寫到達時間，野外加方格方位與步測。" },
-  { id: "gpx", title: "GPX／KML 匯出", for: "兩者", note: "匯入手機 Avenza、郊野樂行或 GPX 軟件預習。" },
-  { id: "safety", title: "安全計劃", for: "兩者", note: "集合點、截止時間、緊急電話、惡劣天氣取消條件。" },
-  { id: "qr", title: "城市定向 QR 打卡", for: "城市", note: "每站二維碼，領袖可核對到站次序。" },
-  { id: "photo", title: "相片提示", for: "城市", note: "檢查點現場照片，降低「找錯燈柱」。" },
-  { id: "bearing", title: "野外方位＋步測", for: "野外", note: "每段磁方位、距離、估計步數。" },
-  { id: "escape", title: "逃生／撤退路線", for: "野外", note: "標最近馬路、郊遊徑、遊客中心。" },
-  { id: "multi", title: "A／B／C 多條路線", for: "兩者", note: "幼童軍／童軍／深資分途，同一張底圖。" },
+  { id: "print", title: "A4 紙圖＋CP 圓圈", for: "兩者", note: "已做：策劃者放點，列印給參加者用紙圖玩。" },
+  { id: "card", title: "參加者控制卡（打孔空格）", for: "兩者", note: "另頁列印到達時間／答案空格，不用手機。" },
+  { id: "master", title: "領袖答案圖", for: "兩者", note: "同一張圖加坐標與正確路線，只給策劃者。" },
+  { id: "multi", title: "A／B／C 多條路線", for: "兩者", note: "同一底圖分難度，分色套印。" },
+  { id: "bearing", title: "野外方位＋段距表", for: "野外", note: "印在圖邊，方便指南針與步測。" },
 ];

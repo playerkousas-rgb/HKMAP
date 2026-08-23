@@ -78,13 +78,13 @@ function renderPrint() {
   return `
     <section class="card">
       <h2>用 Scout System 列印／匯出</h2>
-      <p>設計好路線後，可在地圖頁：</p>
+      <p>本系統定位是<strong>策劃者畫圖工具</strong>：在官方底圖上放 CP 圓圈，列印紙圖給參加者，不是手機遊戲。</p>
       <ul>
-        <li><strong>列印路線</strong> — 連檢查點表、HK1980 方格、段距與方位</li>
-        <li><strong>匯出 JSON</strong> — 給其他領袖繼續編輯</li>
-        <li><strong>匯出 GPX</strong> — 放進手機地圖預習（地圖頁新增）</li>
+        <li><strong>列印地圖</strong> — 紙圖上有紫紅起點 △、檢查點 ○、終點 ◎</li>
+        <li><strong>檢查點說明表</strong> — 印在圖下方，參加者對照尋點</li>
+        <li><strong>匯出 JSON</strong> — 給其他策劃者繼續改圖</li>
       </ul>
-      <p class="notice">列印畫面用的是官方地形圖 API 圖磚，必須保留「Map from Lands Department」。這<strong>不是</strong>紙本 HM20C／郊區地圖的複製品，山藝考核請用正版紙圖。</p>
+      <p class="notice">列印底圖來自官方地形圖 API，須保留「Map from Lands Department」。不是紙本 HM20C／郊區地圖複製品。</p>
       <p><a class="solid" href="index.html" style="display:inline-block;text-decoration:none">返回設計地圖</a></p>
     </section>`;
 }

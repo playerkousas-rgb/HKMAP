@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Scout System · 香港定向地圖</title>
-  <meta name="description" content="童軍城市定向／野外定向設計台。連結地政總署 HM20C／免費 iB20000 數碼地形圖與漁護署郊遊圖層。© Scout System" />
+  <title>Scout System · 定向地圖設計</title>
+  <meta name="description" content="策劃者在官方香港地圖上放置檢查點，列印紙圖給參加者。© Scout System" />
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,7 +19,7 @@
         <img src="assets/mark.svg" alt="" />
         <div>
           <h1>SCOUT SYSTEM</h1>
-          <small>香港定向地圖 · HM20C / iB20000 / 郊遊圖</small>
+          <small>策劃用紙圖 · 在地圖上放 CP，然後列印</small>
         </div>
       </div>
       <div class="basemaps" role="tablist" aria-label="底圖">
@@ -33,17 +33,16 @@
         <div id="suggest" class="suggest"></div>
       </div>
       <div class="top-actions">
-        <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">下載電子地圖</a>
+        <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">下載底圖</a>
         <button class="ghost" id="btn-lang" type="button">EN</button>
         <button class="ghost" id="btn-about" type="button">地圖來源</button>
-        <a class="ghost" href="stations.html" style="text-decoration:none;display:inline-block">QR／提示冊</a>
-        <button class="solid" id="btn-print" type="button">列印路線</button>
+        <button class="solid" id="btn-print" type="button">列印地圖</button>
       </div>
     </header>
 
     <aside class="sidebar">
       <section class="panel">
-        <h2>活動</h2>
+        <h2>設計路線</h2>
         <label class="field">路線名稱
           <input id="course-name" maxlength="80" />
         </label>
@@ -56,7 +55,7 @@
         <div class="tools">
           <button class="tool active" data-tool="pan" type="button">平移</button>
           <button class="tool" data-tool="start" type="button">△ 起點</button>
-          <button class="tool" data-tool="control" type="button">○ 檢查點</button>
+          <button class="tool" data-tool="control" type="button">○ CP</button>
           <button class="tool" data-tool="finish" type="button">◎ 終點</button>
           <button class="tool" data-tool="measure" type="button">量距</button>
           <button class="tool" data-tool="delete" type="button">刪除</button>
@@ -97,16 +96,13 @@
         <div id="ctrl-list" class="ctrl-list"></div>
         <div id="editor" hidden>
           <label class="field">編號 / 代碼<input id="ed-code" /></label>
-          <label class="field">名稱<input id="ed-name" /></label>
-          <label class="field">現場提示<textarea id="ed-clue" placeholder="例如：公園入口告示板、銅像底座、碼頭告示"></textarea></label>
-          <label class="field">照片提示（城市定向）
-            <input id="ed-photo" type="file" accept="image/*" />
+          <label class="field">名稱<input id="ed-name" placeholder="印在說明表上，可留空" /></label>
+          <label class="field">檢查點說明（印給參加者）
+            <textarea id="ed-clue" placeholder="例如：公園入口告示板、石橋北端、燈柱編號"></textarea>
           </label>
-          <div id="ed-photo-preview" class="notice"></div>
-          <label class="field">領袖備註<textarea id="ed-note"></textarea></label>
-          <a class="solid" id="btn-stations" href="stations.html" style="display:block;text-align:center;text-decoration:none;margin-top:8px">列印 QR／提示冊</a>
+          <label class="field">策劃備註（不印給參加者）<textarea id="ed-note"></textarea></label>
         </div>
-        <div id="checkin-log" style="margin-top:10px"></div>
+        <p class="notice" style="margin:8px 0 0">畫好後按「列印地圖」：紙圖上會有紫紅 CP 圓圈，參加者用紙圖玩，不用手機。</p>
       </section>
 
       <section class="panel" id="sheet-ib20000">
@@ -191,7 +187,7 @@
       <p>按照署方規定，地圖畫面已標示 Lands Department 版權聲明。請勿大量短時間呼叫 API。使用前請閱讀
         <a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">條款及知識產權告示</a>。
       </p>
-      <p>紙本 <strong>HM20C</strong> 與<strong>郊區地圖</strong>仍是山藝考核的標準教材。免費的 <strong>iB20000</strong> 是數碼地形資料，不是紙圖彩色 PDF。本系統是設計與預習工具。</p>
+      <p>本系統給<strong>策劃者畫圖、列印紙圖</strong>。參加者用紙圖找檢查點，不是手機 App。紙本 HM20C／郊區地圖仍是山藝考核標準教材。</p>
       <p style="font-size:12px;color:#5d6b64">© Scout System</p>
       <div class="actions">
         <button class="solid" id="terms-ok" type="button">我已閱讀並同意</button>
