@@ -33,6 +33,7 @@
         <div id="suggest" class="suggest"></div>
       </div>
       <div class="top-actions">
+        <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">下載電子地圖</a>
         <button class="ghost" id="btn-lang" type="button">EN</button>
         <button class="ghost" id="btn-about" type="button">地圖來源</button>
         <button class="solid" id="btn-print" type="button">列印路線</button>
@@ -62,7 +63,11 @@
         <div class="row" style="margin-top:8px">
           <button class="ghost" id="btn-new" type="button" style="color:#16362c;background:#efe8d8">新路線</button>
           <button class="ghost" id="btn-export" type="button" style="color:#16362c;background:#efe8d8">匯出 JSON</button>
+          <button class="ghost" id="btn-gpx" type="button" style="color:#16362c;background:#efe8d8">匯出 GPX</button>
+        </div>
+        <div class="row" style="margin-top:8px">
           <button class="ghost" id="btn-import" type="button" style="color:#16362c;background:#efe8d8">匯入</button>
+          <a class="ghost" href="download.html" style="color:#16362c;background:#efe8d8;text-decoration:none;text-align:center">電子地圖下載</a>
         </div>
         <input id="file-import" type="file" accept="application/json,.json" hidden />
         <div class="row" style="margin-top:8px">
@@ -73,8 +78,17 @@
           <div class="stat"><span>路線長度</span><strong id="stat-dist">0 m</strong></div>
           <div class="stat"><span>檢查點</span><strong id="stat-n">0</strong></div>
           <div class="stat"><span>路段</span><strong id="stat-legs">0</strong></div>
-          <div class="stat"><span>磁偏角（約）</span><strong id="stat-mag">3.1°W</strong></div>
+          <div class="stat"><span>估計步行</span><strong id="stat-time">—</strong></div>
         </div>
+        <label class="field">集合／撤退點
+          <input id="course-meet" placeholder="例如：北潭涌遊客中心／鐘樓" />
+        </label>
+        <label class="field">截止時間
+          <input id="course-cutoff" placeholder="例如：16:00 必須返回" />
+        </label>
+        <label class="field">緊急聯絡
+          <input id="course-sos" placeholder="領袖電話／999" />
+        </label>
       </section>
 
       <section class="panel">

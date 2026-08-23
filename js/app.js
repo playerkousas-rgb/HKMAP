@@ -43,8 +43,16 @@ function emptyCourse() {
     name: "未命名定向路線",
     type: "urban",
     created: new Date().toISOString(),
+    meet: "",
+    cutoff: "",
+    sos: "",
     controls: [],
   };
+}
+
+function walkMinutes(meters, countryside) {
+  const mPerMin = countryside ? 60 : 80;
+  return Math.max(1, Math.round(meters / mPerMin));
 }
 
 function uid() {
@@ -423,7 +431,12 @@ function renderSidebar() {
     stats.dist >= 1000 ? `${(stats.dist / 1000).toFixed(2)} km` : `${Math.round(stats.dist)} m`;
   document.getElementById("stat-n").textContent = String(stats.count);
   document.getElementById("stat-legs").textContent = String(stats.legs.length);
-  document.getElementById("stat-mag").textContent = `${MAG_DECLINATION_WEST.toFixed(1)}°W`;
+  document.getElementById("stat-time").textContent = stats.dist
+    ? `約 ${walkMinutes(stats.dist, state.course.type !== "urban")} 分鐘`
+    : "—";
+  document.getElementById("course-meet").value = state.course.meet || "";
+  document.getElementById("course-cutoff").value = state.course.cutoff || "";
+  document.getElementById("course-sos").value = state.course.sos || "";
 
   const list = orderedControls();
   const box = document.getElementById("ctrl-list");
@@ -487,7 +500,8 @@ function renderPrintTable() {
     <h2>Scout System　${state.course.name}</h2>
     <p>類型：${state.course.type === "urban" ? "城市定向" : "野外／郊遊定向"}　·　總距 ${
       stats.dist >= 1000 ? (stats.dist / 1000).toFixed(2) + " km" : Math.round(stats.dist) + " m"
-    }　·　磁偏角 ${MAG_DECLINATION_WEST}°W　·　© Scout System</p>
+    }　·　估計步行 ${walkMinutes(stats.dist, state.course.type !== "urban")} 分鐘　·　磁偏角 ${MAG_DECLINATION_WEST}°W　·　© Scout System</p>
+    <p>集合／撤退：${state.course.meet || "（未填）"}　·　截止：${state.course.cutoff || "（未填）"}　·　緊急：${state.course.sos || "（未填）"}</p>
     <p>底圖：地政總署地形圖 API（對應 HM20C／免費 iB20000 數碼地形圖）${
       state.layer === "countryside" ? "；郊遊圖層：漁農自然護理署（CSDI）" : ""
     }。Map from Lands Department.</p>
@@ -675,6 +689,14 @@ function bind() {
   });
   document.getElementById("btn-print").addEventListener("click", () => window.print());
   document.getElementById("btn-export").addEventListener("click", exportCourse);
+  document.getElementById("btn-gpx").addEventListener("click", exportGpx);
+  ["course-meet", "course-cutoff", "course-sos"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", (e) => {
+      const key = id.replace("course-", "");
+      state.course[key] = e.target.value;
+      persist();
+    });
+  });
   document.getElementById("btn-import").addEventListener("click", () => {
     document.getElementById("file-import").click();
   });
