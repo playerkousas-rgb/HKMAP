@@ -211,6 +211,20 @@ export function zoomForScale(lat, scale, dpi = 96) {
   return Math.log2(num / targetMpp);
 }
 
+/** 列印頁圖面大小（mm）：@page landscape、8 mm 頁邊距；A5 圖高受頁面高度限制。 */
+export const PRINT_AREA_MM = {
+  A3: { w: 420 - 16, h: 168 },
+  A4: { w: 297 - 16, h: 168 },
+  A5: { w: 210 - 16, h: 148 - 16 },
+};
+
+/** 指定比例＋紙張下，列印圖面可容納的最大實際範圍（米）。 */
+export function paperAreaMeters(paper, scale) {
+  const area = PRINT_AREA_MM[paper] || PRINT_AREA_MM.A4;
+  const mPerMm = scale / 1000; // 1:20 000 → 1 mm = 20 m
+  return { w: area.w * mPerMm, h: area.h * mPerMm };
+}
+
 /** HM20C 1:20 000 series — sheet centres for navigation (not paper-map copyright). */
 export const HM20C_SHEETS = [
   {

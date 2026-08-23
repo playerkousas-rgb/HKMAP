@@ -17,6 +17,7 @@ import {
   landsdUrl,
   magneticBearing,
   normalizeFrame,
+  paperAreaMeters,
   parseGridInput,
   planarDistance,
   scaleDenominator,
@@ -260,16 +261,64 @@ function renderFrame() {
   updateFrameInfo();
 }
 
+function fmtLen(m) {
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+/** 圈選範圍超出（紙張＋比例）時，建議最接近現狀、能精確出圖的組合。 */
+function fitSuggestion(w, h) {
+  const papers = ["A5", "A4", "A3"];
+  const scales = [5000, 10000, 15000, 20000];
+  const curP = Math.max(0, papers.indexOf(state.course.paperSize || "A4"));
+  const curS = Math.max(0, scales.indexOf(currentScaleLock()));
+  let best = null;
+  let bestCost = Infinity;
+  papers.forEach((p, pi) => {
+    scales.forEach((s, si) => {
+      const a = paperAreaMeters(p, s);
+      if (w <= a.w - 40 && h <= a.h - 40) {
+        // 換比例（放大分母）優於換紙張；兩者都越少改越好
+        const cost = Math.abs(pi - curP) * 10 + Math.max(0, si - curS) * 3;
+        if (cost < bestCost) {
+          bestCost = cost;
+          best = { p, s };
+        }
+      }
+    });
+  });
+  if (!best) return "範圍太大（1 : 20 000 + A3 都容不下），請縮小圈選範圍。";
+  const a = paperAreaMeters(best.p, best.s);
+  const bits = [];
+  if (best.p !== (state.course.paperSize || "A4")) bits.push(`紙張 ${best.p}`);
+  if (best.s !== currentScaleLock()) bits.push(`比例 ${scaleLabel(best.s)}`);
+  return `建議改：${bits.join("＋")}（該組合最大約 ${fmtLen(a.w)} × ${fmtLen(a.h)}）。`;
+}
+
 function updateFrameInfo() {
   const el = document.getElementById("frame-info");
   if (!el) return;
   const frame = state.course.frame;
+  const scale = currentScaleLock();
+  const paper = state.course.paperSize || "A4";
+  const area = paperAreaMeters(paper, scale);
+  const maxTxt = `${fmtLen(area.w)} × ${fmtLen(area.h)}`;
   if (!frameValid(frame)) {
-    el.textContent = "先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。";
+    el.innerHTML =
+      `先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。<br>` +
+      `<strong>${paper} @ ${scaleLabel(scale)}</strong> 圖面最大約 <strong>${maxTxt}</strong>，圈選時可參考。`;
     return;
   }
   const { w, h } = frameSize(frame);
-  el.innerHTML = `已圈選 <strong>${Math.round(w)} m × ${Math.round(h)} m</strong>。可再拖一次重畫。列印會按此範圍出圖。`;
+  let html = `已圈選 <strong>${Math.round(w)} m × ${Math.round(h)} m</strong>。可再拖一次重畫。`;
+  if (w <= area.w - 40 && h <= area.h - 40) {
+    html += ` ✔ 可按 <strong>${scaleLabel(scale)}</strong> 精確出圖（${paper} 最大約 ${maxTxt}）。`;
+  } else {
+    html += ` <span style="color:#9a5b00">超出 ${paper} @ ${scaleLabel(scale)}（最大約 ${maxTxt}）。${fitSuggestion(
+      w,
+      h
+    )}</span>`;
+  }
+  el.innerHTML = html;
 }
 
 function fitFrame() {
@@ -885,7 +934,7 @@ function bind() {
   });
   document.getElementById("course-type").addEventListener("change", (e) => { state.course.type = e.target.value; persist(); });
   document.getElementById("play-mode").addEventListener("change", (e) => { state.course.playMode = e.target.value; renderSidebar(); renderCourse(); persist(); });
-  document.getElementById("paper-size").addEventListener("change", (e) => { state.course.paperSize = e.target.value; persist(); });
+  document.getElementById("paper-size").addEventListener("change", (e) => { state.course.paperSize = e.target.value; updateFrameInfo(); persist(); });
   document.getElementById("btn-lock-frame").addEventListener("click", () => {
     if (!frameValid(state.course.frame)) { toast(t("請先在地圖拖出設計範圍", "Draw a frame first")); setTool("frame"); return; }
     state.course.frameLocked = !state.course.frameLocked;
@@ -932,6 +981,7 @@ function bind() {
         ? t(`已鎖定 ${scaleLabel(s)}（縮放停用）`, `Locked at ${scaleLabel(s)}`)
         : t(`已對齊約 ${scaleLabel(s)}`, `Aligned near ${scaleLabel(s)}`)
     );
+    updateFrameInfo();
     persist();
   });
   document.getElementById("btn-scale-lock").addEventListener("click", () => {
@@ -1072,6 +1122,7 @@ function boot() {
   bind();
   applyBasemap();
   renderCourse();
+  renderFrame();
   renderSidebar();
   syncScaleSelect();
   if (state.course.scaleLocked) {

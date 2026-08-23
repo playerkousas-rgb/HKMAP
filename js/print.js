@@ -9,7 +9,7 @@ import {
   gridBearing,
   gridRefs,
   landsdUrl,
-  metersPerPixel,
+  paperAreaMeters,
   planarDistance,
   scaleDenominator,
   tileOptions,
@@ -175,20 +175,17 @@ function effectiveScale() {
 function fit() {
   const list = orderedControls(course?.controls || []);
   const scale = Number(scaleSel.value);
-  const el = document.getElementById("print-map");
   let frameNote = false;
   if (frameValid(course?.frame)) {
-    /* 優先按選定（LOCK）比例出圖；範圍裝得下就精確到該比例，
-       裝不下才退回「放大裝入範圍」，避免 1:18 990 這類怪比例玩死參加者。 */
+    /* 優先按選定（LOCK）比例出圖；判斷是否裝得下用「實際列印頁」尺寸
+       （landscape、8 mm 頁邊距），不是螢幕預覽框。裝得下就精確到該
+       比例，裝不下才退回「放大裝入範圍」，避免 1:18 990 這類怪比例。 */
     const f = course.frame;
     const { w, h } = frameSize(f);
     const center = [(f.south + f.north) / 2, (f.west + f.east) / 2];
     const z = zoomForScale(center[0], scale);
-    const mpp = metersPerPixel(center[0], z);
-    const fits =
-      el.clientWidth > 20 &&
-      w / mpp <= el.clientWidth - 12 &&
-      h / mpp <= el.clientHeight - 12;
+    const area = paperAreaMeters(course.paperSize || "A4", scale);
+    const fits = w <= area.w - 40 && h <= area.h - 40; // 留約 2 mm 邊
     if (fits) {
       map.setView(center, z, { animate: false });
     } else {
