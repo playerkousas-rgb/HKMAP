@@ -233,9 +233,10 @@ label.field textarea { min-height: 60px; resize: vertical; }
 
 .tools {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
+.tool[data-tool="frame"] { grid-column: span 2; }
 .tool {
   background: #efe8d8;
   border-radius: 10px;

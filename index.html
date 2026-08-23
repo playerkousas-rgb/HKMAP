@@ -54,12 +54,15 @@
         </label>
         <div class="tools">
           <button class="tool active" data-tool="pan" type="button">平移</button>
+          <button class="tool" data-tool="frame" type="button">圈選範圍</button>
           <button class="tool" data-tool="start" type="button">△ 起點</button>
           <button class="tool" data-tool="control" type="button">○ CP</button>
           <button class="tool" data-tool="finish" type="button">◎ 終點</button>
           <button class="tool" data-tool="measure" type="button">量距</button>
           <button class="tool" data-tool="delete" type="button">刪除</button>
+          <button class="tool" data-tool="clear-frame" type="button">清除範圍</button>
         </div>
+        <p class="notice" id="frame-info" style="margin:8px 0 0">先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。</p>
         <div class="row" style="margin-top:8px">
           <button class="ghost" id="btn-new" type="button" style="color:#16362c;background:#efe8d8">新路線</button>
           <button class="ghost" id="btn-export" type="button" style="color:#16362c;background:#efe8d8">匯出 JSON</button>
@@ -163,6 +166,7 @@
         <button class="chip" id="scale-chip" type="button">比例</button>
         <button class="chip" id="btn-scale" type="button">對齊 1:20 000</button>
         <button class="chip on" id="btn-grid" type="button">HK1980 方格網</button>
+        <button class="chip" id="btn-fit-frame" type="button">對齊圈選範圍</button>
         <button class="chip" id="btn-locate" type="button">我的位置</button>
       </div>
       <div class="coord-readout" id="readout"></div>

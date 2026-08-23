@@ -169,6 +169,41 @@ export function scaleDenominator(lat, zoom, dpi = 96) {
   return (mpp * dpi) / metersPerInch;
 }
 
+export function normalizeFrame(a, b) {
+  return {
+    south: Math.min(a.lat, b.lat),
+    north: Math.max(a.lat, b.lat),
+    west: Math.min(a.lng, b.lng),
+    east: Math.max(a.lng, b.lng),
+  };
+}
+
+export function frameValid(frame) {
+  return (
+    frame &&
+    Number.isFinite(frame.south) &&
+    Number.isFinite(frame.north) &&
+    Number.isFinite(frame.west) &&
+    Number.isFinite(frame.east) &&
+    frame.north > frame.south &&
+    frame.east > frame.west
+  );
+}
+
+export function frameSize(frame) {
+  if (!frameValid(frame)) return { w: 0, h: 0 };
+  const sw = toHk80(frame.south, frame.west);
+  const ne = toHk80(frame.north, frame.east);
+  return { w: Math.abs(ne.e - sw.e), h: Math.abs(ne.n - sw.n) };
+}
+
+export function frameBounds(frame) {
+  return L.latLngBounds(
+    [frame.south, frame.west],
+    [frame.north, frame.east]
+  );
+}
+
 export function zoomForScale(lat, scale, dpi = 96) {
   const metersPerInch = 0.0254;
   const targetMpp = (scale * metersPerInch) / dpi;

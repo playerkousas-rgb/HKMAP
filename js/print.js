@@ -2,6 +2,8 @@ import {
   DATASETS,
   MAG_DECLINATION_WEST,
   csdiExportLayer,
+  frameBounds,
+  frameValid,
   fromHk80,
   gridBearing,
   gridRefs,
@@ -122,6 +124,7 @@ function renderSheet() {
   meta.textContent = `${kind}　·　${list.length} 個點　·　約 ${distTxt}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
   if (course?.meet) meta.textContent += `　·　集合 ${course.meet}`;
   if (course?.cutoff) meta.textContent += `　·　截止 ${course.cutoff}`;
+  if (frameValid(course?.frame)) meta.textContent += "　·　按策劃者圈選範圍出圖";
 
   const leader = document.getElementById("opt-coords").checked;
   document.body.classList.toggle("leader", leader);
@@ -145,14 +148,15 @@ function renderSheet() {
 function fit() {
   const list = orderedControls(course?.controls || []);
   const scale = Number(document.getElementById("scale").value);
-  if (list.length) {
+  if (frameValid(course?.frame)) {
+    map.fitBounds(frameBounds(course.frame), { padding: [6, 6], animate: false });
+  } else if (list.length) {
     const bounds = L.latLngBounds(list.map((c) => [c.lat, c.lng])).pad(0.35);
     map.fitBounds(bounds, { animate: false });
+    map.setZoom(zoomForScale(map.getCenter().lat, scale), { animate: false });
   } else {
     map.setView([22.302, 114.172], 15);
   }
-  const z = zoomForScale(map.getCenter().lat, scale);
-  map.setZoom(z, { animate: false });
   map.invalidateSize();
   renderSheet();
 }

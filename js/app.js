@@ -8,11 +8,15 @@ import {
   MAG_DECLINATION_WEST,
   csdiExportLayer,
   formatDeg,
+  frameBounds,
+  frameSize,
+  frameValid,
   fromHk80,
   gridBearing,
   gridRefs,
   landsdUrl,
   magneticBearing,
+  normalizeFrame,
   parseGridInput,
   planarDistance,
   scaleDenominator,
@@ -100,6 +104,9 @@ const posts = csdiExportLayer(DATASETS.posts, "csdiPosts");
 const courseLayer = L.layerGroup().addTo(map);
 const measureLayer = L.layerGroup().addTo(map);
 const gridLayer = L.layerGroup().addTo(map);
+const frameLayer = L.layerGroup().addTo(map);
+
+const draw = { start: null, temp: null };
 
 function applyBasemap() {
   [basemap, imagery, parks, trails, posts].forEach((l) => {
@@ -201,6 +208,95 @@ function renderGrid() {
       }).addTo(gridLayer);
     }
   }
+}
+
+/* ---------- design frame ---------- */
+function renderFrame() {
+  frameLayer.clearLayers();
+  if (draw.temp) {
+    L.rectangle(L.latLngBounds(draw.start, draw.temp), {
+      color: "#d7b056",
+      weight: 2,
+      dashArray: "6 4",
+      fillOpacity: 0.06,
+      interactive: false,
+    }).addTo(frameLayer);
+  }
+  const frame = state.course.frame;
+  if (!frameValid(frame)) {
+    updateFrameInfo();
+    return;
+  }
+  const outer = [
+    [HK_BOUNDS[0][0] - 0.05, HK_BOUNDS[0][1] - 0.05],
+    [HK_BOUNDS[0][0] - 0.05, HK_BOUNDS[1][1] + 0.05],
+    [HK_BOUNDS[1][0] + 0.05, HK_BOUNDS[1][1] + 0.05],
+    [HK_BOUNDS[1][0] + 0.05, HK_BOUNDS[0][1] - 0.05],
+  ];
+  const hole = [
+    [frame.south, frame.west],
+    [frame.south, frame.east],
+    [frame.north, frame.east],
+    [frame.north, frame.west],
+  ];
+  L.polygon([outer, hole], {
+    stroke: false,
+    fillColor: "#0f1c17",
+    fillOpacity: 0.42,
+    interactive: false,
+  }).addTo(frameLayer);
+  L.rectangle(frameBounds(frame), {
+    color: "#d7b056",
+    weight: 2.5,
+    fill: false,
+    interactive: false,
+  }).addTo(frameLayer);
+  updateFrameInfo();
+}
+
+function updateFrameInfo() {
+  const el = document.getElementById("frame-info");
+  if (!el) return;
+  const frame = state.course.frame;
+  if (!frameValid(frame)) {
+    el.textContent = "先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。";
+    return;
+  }
+  const { w, h } = frameSize(frame);
+  el.innerHTML = `已圈選 <strong>${Math.round(w)} m × ${Math.round(h)} m</strong>。可再拖一次重畫。列印會按此範圍出圖。`;
+}
+
+function fitFrame() {
+  if (!frameValid(state.course.frame)) {
+    toast(t("尚未圈選範圍", "No frame yet"));
+    return;
+  }
+  map.fitBounds(frameBounds(state.course.frame), { padding: [24, 24], animate: false });
+}
+
+function clearFrame() {
+  state.course.frame = null;
+  draw.start = null;
+  draw.temp = null;
+  renderFrame();
+  persist();
+  toast(t("已清除圈選範圍", "Frame cleared"));
+}
+
+function commitFrame(a, b) {
+  const frame = normalizeFrame(a, b);
+  const { w, h } = frameSize(frame);
+  if (w < 40 || h < 40) {
+    toast(t("範圍太小，請再拖大一點", "Frame too small"));
+    return;
+  }
+  state.course.frame = frame;
+  draw.start = null;
+  draw.temp = null;
+  renderFrame();
+  persist();
+  map.fitBounds(frameBounds(frame), { padding: [28, 28], animate: true });
+  toast(t(`已圈選 ${Math.round(w)} × ${Math.round(h)} 米`, "Frame set"));
 }
 
 /* ---------- course graphics ---------- */
@@ -313,7 +409,34 @@ function renderMeasure() {
 }
 
 /* ---------- events ---------- */
+map.on("mousedown", (e) => {
+  if (state.tool !== "frame" || e.originalEvent.button) return;
+  L.DomEvent.stop(e);
+  map.dragging.disable();
+  draw.start = e.latlng;
+  draw.temp = e.latlng;
+  renderFrame();
+});
+map.on("mousemove", (e) => {
+  updateReadout(e.latlng);
+  if (state.tool !== "frame" || !draw.start) return;
+  draw.temp = e.latlng;
+  renderFrame();
+});
+function finishFrameDraw() {
+  if (state.tool !== "frame" || !draw.start) return;
+  const start = draw.start;
+  const end = draw.temp;
+  draw.start = null;
+  draw.temp = null;
+  map.dragging.enable();
+  if (end) commitFrame(start, end);
+}
+map.on("mouseup", finishFrameDraw);
+document.addEventListener("mouseup", finishFrameDraw);
+
 map.on("click", (e) => {
+  if (state.tool === "frame") return;
   if (state.tool === "start" || state.tool === "control" || state.tool === "finish") {
     addControl(e.latlng.lat, e.latlng.lng, state.tool);
     return;
@@ -324,7 +447,6 @@ map.on("click", (e) => {
   }
 });
 
-map.on("mousemove", (e) => updateReadout(e.latlng));
 map.on("moveend zoomend", () => {
   renderGrid();
   updateScaleChip();
@@ -348,13 +470,23 @@ function updateScaleChip() {
 }
 
 function setTool(tool) {
+  if (tool === "clear-frame") {
+    clearFrame();
+    return;
+  }
   state.tool = tool;
   document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
   const cursor =
     tool === "pan" ? "" : tool === "delete" ? "not-allowed" : "crosshair";
   map.getContainer().style.cursor = cursor;
-  if (tool !== "measure") {
-    /* keep last measure until cleared */
+  if (tool === "frame") {
+    map.dragging.disable();
+    toast(t("在地圖上拖出長方形，圈選設計範圍", "Drag a box on the map"));
+  } else {
+    map.dragging.enable();
+    draw.start = null;
+    draw.temp = null;
+    renderFrame();
   }
 }
 
@@ -508,6 +640,8 @@ function importCourse(file) {
       if (state.course.controls[0]) {
         map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
       }
+      renderFrame();
+      if (frameValid(state.course.frame)) fitFrame();
       toast(t("已匯入路線", "Course imported"));
     } catch {
       toast(t("檔案格式不正確", "Invalid file"));
@@ -545,6 +679,7 @@ function loadSample(kind) {
         { id: uid(), kind: "control", lat: 22.2956, lng: 114.1665, code: "33", name: "天星碼頭", clue: "碼頭入口告示", note: "" },
         { id: uid(), kind: "finish", lat: 22.2939, lng: 114.1697, code: "F", name: "返回鐘樓", clue: "起點集合", note: "" },
       ],
+      frame: { south: 22.2924, west: 114.1652, north: 22.2986, east: 114.1742 },
     };
     map.setView([22.2952, 114.1695], 16);
   } else {
@@ -561,14 +696,17 @@ function loadSample(kind) {
         { id: uid(), kind: "control", lat: 22.3982, lng: 114.3285, code: "32", name: "郊遊徑分岔", clue: "小路交匯", note: "" },
         { id: uid(), kind: "finish", lat: 22.3968, lng: 114.3212, code: "F", name: "返回遊客中心", clue: "集合點", note: "" },
       ],
+      frame: { south: 22.3935, west: 114.3165, north: 22.4035, east: 114.332 },
     };
     map.setView([22.398, 114.324], 15);
   }
-  applyBasemap();
-  renderCourse();
-  renderSidebar();
-  persist();
-}
+    applyBasemap();
+    renderCourse();
+    renderFrame();
+    renderSidebar();
+    persist();
+    if (frameValid(state.course.frame)) fitFrame();
+  }
 
 /* ---------- boot ---------- */
 function bind() {
@@ -629,6 +767,7 @@ function bind() {
     document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
     renderGrid();
   });
+  document.getElementById("btn-fit-frame").addEventListener("click", fitFrame);
   document.getElementById("btn-scale").addEventListener("click", () => {
     const z = zoomForScale(map.getCenter().lat, 20000);
     map.setZoom(z);
@@ -676,6 +815,7 @@ function bind() {
     state.course = emptyCourse();
     state.selectedId = null;
     renderCourse();
+    renderFrame();
     renderSidebar();
     persist();
   });
