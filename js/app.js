@@ -21,6 +21,12 @@ import {
   toHk80,
   zoomForScale,
 } from "./hkgeo.js";
+import {
+  compressImage,
+  ensureIds,
+  listCheckins,
+  publishCourse,
+} from "./urban.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
@@ -40,6 +46,7 @@ function emptyCourse() {
   return {
     version: 1,
     system: "Scout System",
+    id: uid(),
     name: "未命名定向路線",
     type: "urban",
     created: new Date().toISOString(),
@@ -302,6 +309,8 @@ function addControl(lat, lng, kind) {
     name: kind === "start" ? "起點" : kind === "finish" ? "終點" : "",
     clue: "",
     note: "",
+    photo: "",
+    secret: uid(),
   };
   state.course.controls.push(ctrl);
   state.selectedId = ctrl.id;
@@ -473,7 +482,34 @@ function renderSidebar() {
     document.getElementById("ed-name").value = sel.name;
     document.getElementById("ed-clue").value = sel.clue;
     document.getElementById("ed-note").value = sel.note;
+    const prev = document.getElementById("ed-photo-preview");
+    prev.innerHTML = sel.photo
+      ? `<img src="${sel.photo}" alt="" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px" />`
+      : "未有照片。城市定向建議拍下燈柱、牌匾或雕塑。";
   }
+  renderCheckinLog();
+}
+
+function renderCheckinLog() {
+  const box = document.getElementById("checkin-log");
+  if (!box || !state.course.id) return;
+  const rows = listCheckins(state.course.id);
+  if (!rows.length) {
+    box.innerHTML = `<p class="notice" style="margin:8px 0 0">尚未有打卡。列印 QR 後用手機掃描測試。</p>`;
+    return;
+  }
+  const byTeam = {};
+  rows.forEach((r) => {
+    byTeam[r.team] = byTeam[r.team] || [];
+    byTeam[r.team].push(r);
+  });
+  box.innerHTML = `<h2 style="margin:12px 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--moss)">本機打卡紀錄</h2>` +
+    Object.entries(byTeam)
+      .map(([team, items]) => {
+        const codes = items.map((i) => i.code).join(" → ");
+        return `<div class="notice"><strong>${team}</strong>　${items.length} 站　${codes}</div>`;
+      })
+      .join("");
 }
 
 function renderPrintTable() {
@@ -514,9 +550,15 @@ function renderPrintTable() {
 
 /* ---------- persistence ---------- */
 function persist() {
+  ensureIds(state.course);
   const all = loadAll();
   all.current = state.course;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    publishCourse(state.course);
+  } catch {
+    toast(t("本機空間不足，可刪減照片後再試。", "Storage full — remove some photos."));
+  }
 }
 
 function loadAll() {
@@ -575,6 +617,9 @@ function loadSample(kind) {
       name: "尖沙咀海濱城市定向（示範）",
       type: "urban",
       created: new Date().toISOString(),
+      meet: "尖沙咀鐘樓",
+      cutoff: "活動開始後 90 分鐘",
+      sos: "領袖電話／999",
       controls: [
         { id: uid(), kind: "start", lat: 22.2939, lng: 114.1697, code: "S", name: "鐘樓", clue: "古蹟鐘樓南面空地", note: "" },
         { id: uid(), kind: "control", lat: 22.2948, lng: 114.172, code: "31", name: "星光大道", clue: "海濱欄杆／牌匾", note: "" },
@@ -660,6 +705,20 @@ function bind() {
       renderCourse();
       persist();
     });
+  });
+  document.getElementById("ed-photo").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    const sel = state.course.controls.find((c) => c.id === state.selectedId);
+    if (!file || !sel) return;
+    try {
+      sel.photo = await compressImage(file);
+      persist();
+      renderSidebar();
+      toast(t("已加入照片提示", "Photo clue added"));
+    } catch {
+      toast(t("未能讀取相片", "Could not read photo"));
+    }
   });
   document.getElementById("btn-grid").addEventListener("click", () => {
     state.gridOn = !state.gridOn;

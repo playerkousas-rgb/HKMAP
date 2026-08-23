@@ -36,6 +36,7 @@
         <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">下載電子地圖</a>
         <button class="ghost" id="btn-lang" type="button">EN</button>
         <button class="ghost" id="btn-about" type="button">地圖來源</button>
+        <a class="ghost" href="stations.html" style="text-decoration:none;display:inline-block">QR／提示冊</a>
         <button class="solid" id="btn-print" type="button">列印路線</button>
       </div>
     </header>
@@ -97,9 +98,15 @@
         <div id="editor" hidden>
           <label class="field">編號 / 代碼<input id="ed-code" /></label>
           <label class="field">名稱<input id="ed-name" /></label>
-          <label class="field">現場提示<textarea id="ed-clue" placeholder="例如：公園入口告示板、標距柱 M012、石橋北端"></textarea></label>
+          <label class="field">現場提示<textarea id="ed-clue" placeholder="例如：公園入口告示板、銅像底座、碼頭告示"></textarea></label>
+          <label class="field">照片提示（城市定向）
+            <input id="ed-photo" type="file" accept="image/*" />
+          </label>
+          <div id="ed-photo-preview" class="notice"></div>
           <label class="field">領袖備註<textarea id="ed-note"></textarea></label>
+          <a class="solid" id="btn-stations" href="stations.html" style="display:block;text-align:center;text-decoration:none;margin-top:8px">列印 QR／提示冊</a>
         </div>
+        <div id="checkin-log" style="margin-top:10px"></div>
       </section>
 
       <section class="panel" id="sheet-ib20000">

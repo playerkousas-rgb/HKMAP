@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>列印 QR／提示冊 · Scout System</title>
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Outfit:wght@700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/download.css" />
+  <style>
+    .poster {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      border: 2px solid #16362c;
+      border-radius: 16px;
+      padding: 16px;
+      margin: 0 0 16px;
+      background: #fff;
+      text-align: center;
+    }
+    .poster canvas { width: 220px; height: 220px; }
+    .clue-card {
+      break-inside: avoid;
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 12px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+    .clue-card img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; background: #efe8d8; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+    @media print {
+      .topbar, .toolbar, .hero, .no-print { display: none !important; }
+      body.page { background: #fff; }
+      .page-inner { max-width: none; padding: 0; }
+      .card { box-shadow: none; }
+    }
+  </style>
+</head>
+<body class="page">
+  <header class="topbar no-print">
+    <div class="brand">
+      <img src="assets/mark.svg" alt="" />
+      <div>
+        <h1>SCOUT SYSTEM</h1>
+        <small>城市定向 QR 與提示冊</small>
+      </div>
+    </div>
+    <div class="top-actions">
+      <a class="nav" href="index.html">返回地圖</a>
+    </div>
+  </header>
+  <div class="page-inner">
+    <section class="hero no-print">
+      <h1>列印站點 QR ＋ 隊員提示冊</h1>
+      <p>把 QR 貼在檢查點（燈柱、欄杆旁的膠套）。提示冊只給隊員看照片與文字，不含坐標。© Scout System</p>
+    </section>
+    <div class="toolbar no-print">
+      <button class="solid" id="btn-print" type="button">列印</button>
+      <button class="ghost" id="btn-clues" type="button" style="color:#fff">只印提示冊</button>
+      <button class="ghost" id="btn-qr" type="button" style="color:#fff">只印 QR</button>
+    </div>
+    <div id="out"></div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <script type="module" src="js/stations.js"></script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>打卡 · Scout System</title>
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Outfit:wght@700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/download.css" />
+  <style>
+    .stamp { text-align: center; padding: 12px 8px 28px; }
+    .stamp .code {
+      font-family: var(--display);
+      font-size: 56px;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .team-box { max-width: 420px; margin: 0 auto; }
+    .stamp-ok {
+      border: 4px solid #1f7a45;
+      color: #1f7a45;
+      display: inline-block;
+      padding: 8px 18px;
+      transform: rotate(-6deg);
+      font-weight: 800;
+      letter-spacing: .2em;
+      margin: 12px 0;
+    }
+  </style>
+</head>
+<body class="page">
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/mark.svg" alt="" />
+      <div>
+        <h1>SCOUT SYSTEM</h1>
+        <small>城市定向打卡</small>
+      </div>
+    </div>
+  </header>
+  <div class="page-inner">
+    <div id="box"></div>
+  </div>
+  <script type="module" src="js/checkin.js"></script>
+</body>
+</html>
