@@ -49,6 +49,8 @@ function emptyCourse() {
     playMode: "linear",
     paperSize: "A4",
     frameLocked: false,
+    scaleLock: 20000,
+    scaleLocked: false,
     created: new Date().toISOString(),
     meet: "",
     cutoff: "",
@@ -84,6 +86,7 @@ const map = L.map("map", {
   zoom: 13,
   minZoom: 10,
   maxZoom: 20,
+  zoomSnap: 0, // 允許小數縮放，才能精確落在 1:5 000–1:20 000（LOCK 比例用）
   zoomControl: true,
   maxBounds: HK_BOUNDS,
   maxBoundsViscosity: 0.7,
@@ -455,6 +458,7 @@ map.on("click", (e) => {
 
 map.on("moveend zoomend", () => {
   renderGrid();
+  resnapScale();
   updateScaleChip();
 });
 
@@ -469,10 +473,82 @@ function updateReadout(ll) {
   `;
 }
 
+const SCALE_PRESETS = [5000, 10000, 15000, 20000];
+
+function currentScaleLock() {
+  const s = Number(state.course.scaleLock);
+  return SCALE_PRESETS.includes(s) ? s : 20000;
+}
+
+function formatScale(n) {
+  return Math.round(n).toLocaleString("en-HK");
+}
+
+function scaleLabel(s) {
+  return `1 : ${formatScale(s)}`;
+}
+
+function syncScaleSelect() {
+  document.getElementById("scale-select").value = String(currentScaleLock());
+}
+
+function setZoomControls(on) {
+  map.zoomControl[on ? "enable" : "disable"]();
+  map.scrollWheelZoom[on ? "enable" : "disable"]();
+  map.boxZoom[on ? "enable" : "disable"]();
+  map.doubleClickZoom[on ? "enable" : "disable"]();
+  map.touchZoom[on ? "enable" : "disable"]();
+  map.keyboard[on ? "enable" : "disable"]();
+}
+
+function syncScaleLockButton() {
+  const btn = document.getElementById("btn-scale-lock");
+  btn.classList.toggle("on", state.course.scaleLocked);
+  btn.textContent = state.course.scaleLocked ? "🔓 解鎖比例" : "🔒 鎖定比例";
+}
+
+function lockScale(silent) {
+  const scale = currentScaleLock();
+  state.course.scaleLocked = true;
+  setZoomControls(false);
+  map.setZoom(zoomForScale(map.getCenter().lat, scale), { animate: false });
+  syncScaleLockButton();
+  updateScaleChip();
+  if (!silent) persist();
+}
+
+function unlockScale() {
+  state.course.scaleLocked = false;
+  setZoomControls(true);
+  syncScaleLockButton();
+  updateScaleChip();
+  persist();
+}
+
+/** 鎖定比例時，任何移動／縮放後都把畫面拉回正確縮放，比例不會飄（例如 1:18 990）。 */
+let resnapping = false;
+function resnapScale() {
+  if (!state.course.scaleLocked) return;
+  const target = zoomForScale(map.getCenter().lat, currentScaleLock());
+  if (resnapping || Math.abs(map.getZoom() - target) < 1e-3) return;
+  resnapping = true;
+  map.setZoom(target, { animate: false });
+  resnapping = false;
+}
+
 function updateScaleChip() {
-  const c = map.getCenter();
-  const scale = scaleDenominator(c.lat, map.getZoom());
-  document.getElementById("scale-chip").textContent = `比例 1 : ${Math.round(scale).toLocaleString("en-HK")}`;
+  const el = document.getElementById("scale-chip");
+  if (state.course.scaleLocked) {
+    el.textContent = `🔒 1 : ${formatScale(currentScaleLock())}`;
+    el.classList.add("on");
+    el.title = t("比例已鎖定，縮放已停用；平移仍可", "Scale locked; zoom disabled, panning still works");
+  } else {
+    const c = map.getCenter();
+    const scale = scaleDenominator(c.lat, map.getZoom());
+    el.textContent = `比例 1 : ${formatScale(scale)}`;
+    el.classList.remove("on");
+    el.title = "";
+  }
 }
 
 function setTool(tool) {
@@ -640,21 +716,71 @@ function exportCourse() {
   a.click();
 }
 
+function exportGpx() {
+  const esc = (s) =>
+    String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const list = orderedControls();
+  const wpts = list
+    .map((c) => {
+      const what = c.kind === "start" ? "起點" : c.kind === "finish" ? "終點" : "檢查點";
+      const desc = [what, c.name, c.clue].filter(Boolean).join(" — ");
+      return [
+        `  <wpt lat="${c.lat.toFixed(6)}" lon="${c.lng.toFixed(6)}">`,
+        `    <name>${esc(c.code)}</name>`,
+        `    <desc>${esc(desc)}</desc>`,
+        `  </wpt>`,
+      ].join("\n");
+    })
+    .join("\n");
+  const rtepts = list
+    .map((c) => `    <rtept lat="${c.lat.toFixed(6)}" lon="${c.lng.toFixed(6)}"><name>${esc(c.code)}</name></rtept>`)
+    .join("\n");
+  const gpx = [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<gpx version="1.1" creator="Scout System" xmlns="http://www.topografix.com/GPX/1/1">`,
+    `  <metadata>`,
+    `    <name>${esc(state.course.name)}</name>`,
+    `    <desc>${esc(state.course.type === "urban" ? "城市定向" : "野外／郊遊定向")}</desc>`,
+    `  </metadata>`,
+    wpts,
+    `  <rte>`,
+    `    <name>${esc(state.course.name)}</name>`,
+    rtepts,
+    `  </rte>`,
+    `</gpx>`,
+  ].join("\n") + "\n";
+  const blob = new Blob([gpx], { type: "application/gpx+xml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${state.course.name || "scout-course"}.gpx`;
+  a.click();
+}
+
 function importCourse(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
       if (!data || !Array.isArray(data.controls)) throw new Error("format");
+      const wasLocked = state.course.scaleLocked;
       state.course = { ...emptyCourse(), ...data, system: "Scout System" };
+      if (!SCALE_PRESETS.includes(Number(state.course.scaleLock))) state.course.scaleLock = 20000;
+      if (wasLocked && !state.course.scaleLocked) setZoomControls(true);
       renderCourse();
       renderSidebar();
+      syncScaleSelect();
       persist();
       if (state.course.controls[0]) {
         map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
       }
       renderFrame();
       if (frameValid(state.course.frame)) fitFrame();
+      if (state.course.scaleLocked) {
+        lockScale(true);
+        toast(t(`已匯入路線（比例已鎖定 ${scaleLabel(currentScaleLock())}）`, `Imported (scale locked at ${scaleLabel(currentScaleLock())})`));
+        return;
+      }
+      syncScaleLockButton();
       toast(t("已匯入路線", "Course imported"));
     } catch {
       toast(t("檔案格式不正確", "Invalid file"));
@@ -674,6 +800,11 @@ function searchPlaces(q) {
 
 /* ---------- sample ---------- */
 function loadSample(kind) {
+  const wasLocked = state.course.scaleLocked;
+  if (wasLocked) {
+    state.course.scaleLocked = false;
+    setZoomControls(true);
+  }
   if (kind === "urban") {
     state.layer = "hm20c";
     state.course = {
@@ -711,14 +842,18 @@ function loadSample(kind) {
       ],
       frame: { south: 22.3935, west: 114.3165, north: 22.4035, east: 114.332 },
     };
-    map.setView([22.398, 114.324], 15);
+      map.setView([22.398, 114.324], 15);
   }
-    applyBasemap();
-    renderCourse();
-    renderFrame();
-    renderSidebar();
-    persist();
-    if (frameValid(state.course.frame)) fitFrame();
+  state.course.scaleLock = state.course.scaleLock || 20000;
+  state.course.scaleLocked = false;
+  syncScaleSelect();
+  syncScaleLockButton();
+  applyBasemap();
+  renderCourse();
+  renderFrame();
+  renderSidebar();
+  persist();
+  if (frameValid(state.course.frame)) fitFrame();
   }
 
 /* ---------- boot ---------- */
@@ -787,10 +922,28 @@ function bind() {
     renderGrid();
   });
   document.getElementById("btn-fit-frame").addEventListener("click", fitFrame);
-  document.getElementById("btn-scale").addEventListener("click", () => {
-    const z = zoomForScale(map.getCenter().lat, 20000);
-    map.setZoom(z);
-    toast(t("已對齊約 1:20 000（HM20C 比例）", "Locked near 1:20 000"));
+  document.getElementById("scale-select").addEventListener("change", (e) => {
+    const s = Number(e.target.value);
+    if (!SCALE_PRESETS.includes(s)) return;
+    state.course.scaleLock = s;
+    map.setZoom(zoomForScale(map.getCenter().lat, s), { animate: false });
+    toast(
+      state.course.scaleLocked
+        ? t(`已鎖定 ${scaleLabel(s)}（縮放停用）`, `Locked at ${scaleLabel(s)}`)
+        : t(`已對齊約 ${scaleLabel(s)}`, `Aligned near ${scaleLabel(s)}`)
+    );
+    persist();
+  });
+  document.getElementById("btn-scale-lock").addEventListener("click", () => {
+    if (state.course.scaleLocked) {
+      unlockScale();
+      toast(t("比例已解鎖，可自由縮放", "Scale unlocked"));
+    } else {
+      lockScale();
+      toast(
+        t(`已 LOCK 死 ${scaleLabel(currentScaleLock())}：縮放停用，比例不會再飄`, `Scale locked at ${scaleLabel(currentScaleLock())}`),
+      );
+    }
   });
   document.getElementById("btn-locate").addEventListener("click", () => {
     if (!navigator.geolocation) return toast("此瀏覽器不支援定位");
@@ -831,11 +984,16 @@ function bind() {
   });
   document.getElementById("btn-new").addEventListener("click", () => {
     if (!confirm(t("開新路線？未匯出的檢查點會留在本機暫存。", "Start a new course?"))) return;
+    const wasLocked = state.course.scaleLocked;
     state.course = emptyCourse();
     state.selectedId = null;
+    if (wasLocked) setZoomControls(true);
+    syncScaleSelect();
+    syncScaleLockButton();
     renderCourse();
     renderFrame();
     renderSidebar();
+    updateScaleChip();
     persist();
   });
   document.getElementById("btn-sample-u").addEventListener("click", () => loadSample("urban"));
@@ -915,6 +1073,11 @@ function boot() {
   applyBasemap();
   renderCourse();
   renderSidebar();
+  syncScaleSelect();
+  if (state.course.scaleLocked) {
+    lockScale(true);
+    toast(t(`比例已鎖定 ${scaleLabel(currentScaleLock())}`, `Scale locked at ${scaleLabel(currentScaleLock())}`));
+  }
   updateScaleChip();
   updateReadout(L.latLng(HK_CENTER[0], HK_CENTER[1]));
   document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
