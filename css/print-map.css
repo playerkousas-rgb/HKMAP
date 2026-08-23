@@ -51,6 +51,14 @@
 .sheet-mark { display: flex; gap: 8px; align-items: center; font-size: 11px; font-weight: 700; }
 .sheet-mark img { width: 32px; height: 32px; border-radius: 8px; }
 
+@page { size: A4 landscape; margin: 8mm; }
+@media print { body[data-paper="A3"] { --paper-width: 400mm; } body[data-paper="A5"] { --paper-width: 190mm; } }
+@page A3 { size: A3 landscape; }
+@page A5 { size: A5 landscape; }
+body[data-paper="A3"] { page: A3; }
+body[data-paper="A5"] { page: A5; }
+body[data-paper="A3"] .sheet { width: 400mm; }
+body[data-paper="A5"] .sheet { width: 190mm; }
 #print-map {
   height: 168mm;
   border: 1px solid #222;

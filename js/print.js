@@ -28,6 +28,8 @@ function loadState() {
 const saved = loadState();
 const course = saved.current;
 const layerId = saved.layer || (course?.type === "countryside" ? "countryside" : "hm20c");
+if (course) document.body.dataset.paper = course.paperSize || "A4";
+if (course?.playMode === "score") document.body.classList.add("score-mode");
 
 const title = document.getElementById("title");
 const meta = document.getElementById("meta");
@@ -120,8 +122,9 @@ function renderSheet() {
 
   const { dist, legs } = statsOf(list);
   const kind = course?.type === "countryside" ? "野外／郊遊定向" : "城市定向";
+  const mode = course?.playMode === "score" ? "奪分式（自由設計路線）" : "越野式（按順序到檢查點）";
   const distTxt = dist >= 1000 ? `${(dist / 1000).toFixed(2)} km` : `${Math.round(dist)} m`;
-  meta.textContent = `${kind}　·　${list.length} 個點　·　約 ${distTxt}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
+  meta.textContent = `${kind}　·　${mode}　·　${list.length} 個點　·　約 ${distTxt}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
   if (course?.meet) meta.textContent += `　·　集合 ${course.meet}`;
   if (course?.cutoff) meta.textContent += `　·　截止 ${course.cutoff}`;
   if (frameValid(course?.frame)) meta.textContent += "　·　按策劃者圈選範圍出圖";
@@ -136,7 +139,7 @@ function renderSheet() {
       const what = c.kind === "start" ? "起點" : c.kind === "finish" ? "終點" : "檢查點";
       return `<tr>
         <td><strong>${c.code}</strong></td>
-        <td>${what}${c.name ? "　" + c.name : ""}${c.clue ? "　—　" + c.clue : ""}</td>
+        <td>${what}${c.name ? "　" + c.name : ""}${c.clue ? "　—　" + c.clue : ""}${course?.playMode === "score" && c.kind === "control" ? `　·　${c.score ?? 0} 分` : ""}</td>
         <td class="leader-only">${g.full}</td>
         <td class="leader-only">${g.fig6}</td>
         <td>${leg}</td>
