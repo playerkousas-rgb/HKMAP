@@ -354,6 +354,32 @@ label.field textarea { min-height: 60px; resize: vertical; }
   box-shadow: 0 6px 18px rgba(0,0,0,.12);
 }
 .chip.on { background: var(--forest); color: var(--gold-2); }
+.frame-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(215,176,86,.95);
+  color: #1a2a22;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  border: 1.5px solid #8a6d2f;
+  line-height: 1;
+}
+.frame-handle.frame-move { cursor: move; }
+.frame-handle.frame-resize { cursor: nwse-resize; }
+.frame-size-tip {
+  background: rgba(15,28,23,.9);
+  color: #f0d48a;
+  font: 700 11px/20px ui-monospace, monospace;
+  text-align: center;
+  border-radius: 6px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
 .scale-set { display: flex; flex-direction: column; gap: 6px; }
 .scale-set select {
   appearance: none;
