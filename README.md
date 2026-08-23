@@ -6,14 +6,17 @@
 
 ## 已連結的香港政府地圖
 
-紙本 **HM20C**（1:20 000 地形圖）與 **郊區地圖（郊遊圖）** 是地政總署有版權的印刷品，並沒有整幅掃描公開圖磚。本系統改為連接**同一測繪處的官方開放服務**：
+紙本 **HM20C**（1:20 000 地形圖）與 **郊區地圖（郊遊圖）** 是地政總署有版權的印刷品，並沒有整幅掃描公開圖磚。對應的電子產品是 **iB20000 數碼地形圖**（2026 年 2 月官方價目表：**免費 HK$0**）。本系統即時底圖來自同一套 i-系列資料。
 
 | 模式 | 來源 | 說明 |
 | --- | --- | --- |
-| HM20C 地形圖 | [地政總署 Topographic Map API](https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI) | XYZ 圖磚，對應數碼地形圖／HM20C 系列（等高線 20 m、道路、建築、小徑） |
+| HM20C / iB20000 | [地政總署 Topographic Map API](https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI) | XYZ 圖磚，對應 iB20000／HM20C（等高線 20 m、道路、建築、小徑） |
+| iB20000 原檔下載 | [香港地圖服務 2.0](https://www.hkmapservice.gov.hk/OneStopSystem/map-search?product=OSSCatB&series=iB20000) · [CSDI](https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637) | FGDB / GML / DWG / DGN / GeoTIFF，約 18 幅，供 QGIS／CAD／離線 |
 | 地名注記 | [Map Label API](https://portal.csdi.gov.hk/csdi-webpage/apidoc/MapLabelAPI) | 中文地名疊加 |
 | 郊遊圖 | 地形圖 + 漁護署 CSDI | 郊野公園、遠足徑、標距柱 |
 | 航空照片 | [Imagery Map API](https://portal.csdi.gov.hk/csdi-webpage/apidoc/ImageryMapAPI) | 官方航空照片 |
+
+**注意：** iB20000 是數碼地形**資料**，不是紙本 HM20C 的彩色 PDF 掃描。山藝考核請繼續用正版紙圖。
 
 圖幅索引可飛往 HM20C 15 幅地形圖，以及郊區地圖 5 幅（港島、大嶼山、新界西北、新界東北及中部、西貢及清水灣）。
 

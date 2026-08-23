@@ -488,7 +488,7 @@ function renderPrintTable() {
     <p>類型：${state.course.type === "urban" ? "城市定向" : "野外／郊遊定向"}　·　總距 ${
       stats.dist >= 1000 ? (stats.dist / 1000).toFixed(2) + " km" : Math.round(stats.dist) + " m"
     }　·　磁偏角 ${MAG_DECLINATION_WEST}°W　·　© Scout System</p>
-    <p>底圖：地政總署地形圖 API（對應 HM20C 數碼地形圖）${
+    <p>底圖：地政總署地形圖 API（對應 HM20C／免費 iB20000 數碼地形圖）${
       state.layer === "countryside" ? "；郊遊圖層：漁農自然護理署（CSDI）" : ""
     }。Map from Lands Department.</p>
     <table>

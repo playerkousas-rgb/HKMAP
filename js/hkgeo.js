@@ -21,18 +21,30 @@ export const DATASETS = {
   trails: "afcd_rcd_1665568199103_4360",
   parks: "afcd_rcd_1635129924112_81508",
   posts: "afcd_rcd_1635136039113_86105",
+  ib20000: "landsd_rcd_1637224132564_22637",
 };
 
 export const LINKS = {
   terms: "https://portal.csdi.gov.hk/csdi-webpage/doc/TNC",
   topoApi: "https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI",
   hm20c: "https://www.landsd.gov.hk/tc/survey-mapping/mapping/multi-scale-topographic-mapping/paper-map.html",
+  ib20000:
+    "https://www.landsd.gov.hk/tc/survey-mapping/mapping/multi-scale-topographic-mapping/digital-map.html",
+  ib20000Order:
+    "https://www.hkmapservice.gov.hk/OneStopSystem/map-search?product=OSSCatB&series=iB20000",
+  ib20000Csdi:
+    "https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637",
+  ib20000Data:
+    "https://data.gov.hk/tc-data/dataset/hk-landsd-openmap-development-hkms-digital-b20k",
+  priceList:
+    "https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf",
   countryside:
     "https://www.landsd.gov.hk/tc/survey-mapping/mapping/thematic-mapping.html",
   geoinfo: "https://www.map.gov.hk/",
   csdi: "https://portal.csdi.gov.hk/",
   landsd: "https://www.landsd.gov.hk/",
   afcd: "https://www.afcd.gov.hk/",
+  hkms: "https://www.hkmapservice.gov.hk/",
 };
 
 export function ensureProj() {

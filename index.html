@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Scout System · 香港定向地圖</title>
-  <meta name="description" content="童軍城市定向／野外定向設計台。連結地政總署 HM20C 地形圖 API 與漁護署郊遊圖層。© Scout System" />
+  <meta name="description" content="童軍城市定向／野外定向設計台。連結地政總署 HM20C／免費 iB20000 數碼地形圖與漁護署郊遊圖層。© Scout System" />
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,11 +19,11 @@
         <img src="assets/mark.svg" alt="" />
         <div>
           <h1>SCOUT SYSTEM</h1>
-          <small>香港定向地圖 · HM20C / 郊遊圖</small>
+          <small>香港定向地圖 · HM20C / iB20000 / 郊遊圖</small>
         </div>
       </div>
       <div class="basemaps" role="tablist" aria-label="底圖">
-        <button type="button" class="active" data-layer="hm20c">HM20C 地形圖</button>
+        <button type="button" class="active" data-layer="hm20c">HM20C / iB20000</button>
         <button type="button" data-layer="countryside">郊遊圖</button>
         <button type="button" data-layer="imagery">航空照片</button>
       </div>
@@ -88,10 +88,35 @@
         </div>
       </section>
 
+      <section class="panel" id="sheet-ib20000">
+        <h2>iB20000 數碼地形圖 <span class="badge-free">免費 HK$0</span></h2>
+        <p class="notice" style="margin:0 0 8px">
+          iB20000 是地政總署 <strong>1:20 000 數碼地形資料</strong>，與紙本 HM20C 同一比例、同一測繪處數據庫。
+          2026 年 2 月官方價目表列明免費。畫面「HM20C / iB20000」底圖已用官方地形圖 API 顯示這套資料（即時圖磚）。
+        </p>
+        <p class="notice" style="margin:0 0 8px">
+          它<strong>不是</strong>紙本 HM20C 的彩色掃描 PDF，也不能直接丟進瀏覽器。下載後適合 QGIS／CAD／離線列印。全港約 18 幅圖磚（紙本 HM20C 為 16 張，其中第 1 張是圖例）。
+        </p>
+        <div class="dl-list">
+          <a href="https://www.hkmapservice.gov.hk/OneStopSystem/map-search?product=OSSCatB&series=iB20000" target="_blank" rel="noopener">香港地圖服務 2.0　訂購／下載 iB20000
+            <span>登入後搜尋 iB20000　·　FGDB / GML / DWG / DGN / GeoTIFF</span>
+          </a>
+          <a href="https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637" target="_blank" rel="noopener">空間數據共享平台 CSDI
+            <span>開放數據頁　·　可查 WFS／WMS／REST</span>
+          </a>
+          <a href="https://data.gov.hk/tc-data/dataset/hk-landsd-openmap-development-hkms-digital-b20k" target="_blank" rel="noopener">資料一線通　數碼地形圖 iB20000
+            <span>官方數據集目錄</span>
+          </a>
+          <a href="https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf" target="_blank" rel="noopener">數碼地圖售價表（2026 年 2 月）
+            <span>iB20000 標示 Free / 免費</span>
+          </a>
+        </div>
+      </section>
+
       <section class="panel" id="sheet-hm20c">
         <h2>HM20C 圖幅</h2>
         <div id="hm20c-grid" class="sheets"></div>
-        <p class="notice" style="margin:8px 0 0">紙本 HM20C 共 16 幅（幅 1 為圖例）。此處以官方地形圖 API 飛往各幅覆蓋範圍，方便對照童軍山藝／定向教材。</p>
+        <p class="notice" style="margin:8px 0 0">紙本 HM20C 共 16 幅（幅 1 為圖例）。此處以官方地形圖 API（iB 系列）飛往各幅覆蓋範圍，方便對照童軍山藝／定向教材。</p>
       </section>
 
       <section class="panel" id="sheet-cm" hidden>
@@ -127,6 +152,7 @@
       <aside class="credit">
         <strong>Map from Lands Department</strong><br />
         Aerial Photograph from Lands Department<br />
+        地形資料對應 iB20000（免費數碼地形圖）<br />
         郊遊圖層：漁農自然護理署（CSDI）<br />
         © Scout System
       </aside>
@@ -144,7 +170,7 @@
       <p>按照署方規定，地圖畫面已標示 Lands Department 版權聲明。請勿大量短時間呼叫 API。使用前請閱讀
         <a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">條款及知識產權告示</a>。
       </p>
-      <p>紙本 <strong>HM20C</strong> 與<strong>郊區地圖</strong>仍是山藝考核的標準教材；本系統是設計與預習工具，並非紙本地圖的複製品。</p>
+      <p>紙本 <strong>HM20C</strong> 與<strong>郊區地圖</strong>仍是山藝考核的標準教材。免費的 <strong>iB20000</strong> 是數碼地形資料，不是紙圖彩色 PDF。本系統是設計與預習工具。</p>
       <p style="font-size:12px;color:#5d6b64">© Scout System</p>
       <div class="actions">
         <button class="solid" id="terms-ok" type="button">我已閱讀並同意</button>
@@ -155,17 +181,25 @@
   <div id="about" class="modal" role="dialog">
     <div class="dialog">
       <h3>已連結的政府地圖</h3>
-      <p><strong>HM20C 地形圖</strong> — 地政總署測繪處 1:20 000 彩色地形圖，童軍及遠足常用。紙本沒有公開圖磚；本系統連接官方
+      <p><strong>HM20C / iB20000</strong> — 紙本 HM20C 是 1:20 000 彩色地形圖。對應的電子產品是 <strong>iB20000 數碼地形圖</strong>，2026 年 2 月官方售價 <strong>免費</strong>。本畫面用官方
         <a href="https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI" target="_blank" rel="noopener">Topographic Map API</a>
-        （數碼地形圖，含等高線、道路、建築物、小徑），並提供 16 幅圖幅索引飛往對應範圍。</p>
-      <p><strong>郊遊圖／郊區地圖</strong> — 官方紙本共 5 幅。本系統「郊遊圖」模式以同一套官方地形圖為底，疊加漁護署開放數據：郊野公園、遠足徑、標距柱
-        （<a href="https://portal.csdi.gov.hk/" target="_blank" rel="noopener">CSDI 空間數據共享平台</a>）。</p>
-      <p><strong>坐標</strong> — 即時顯示 WGS84 與香港 1980 方格網（EPSG:2326），以及 1 km / 100 m / 10 m 方格，方便對照 HM20C 圖邊數字與指南針方位（方格北／磁北）。</p>
-      <p>紙本地圖產品：
-        <a href="https://www.landsd.gov.hk/tc/survey-mapping/mapping/multi-scale-topographic-mapping/paper-map.html" target="_blank" rel="noopener">HM20C</a> ·
-        <a href="https://www.landsd.gov.hk/tc/survey-mapping/mapping/thematic-mapping.html" target="_blank" rel="noopener">郊區地圖</a> ·
-        <a href="https://www.map.gov.hk/" target="_blank" rel="noopener">地理資訊地圖</a>
+        顯示同一套 i-系列資料（等高線、道路、建築、小徑）。</p>
+      <table class="compare">
+        <thead><tr><th></th><th>紙本 HM20C</th><th>iB20000</th><th>本系統底圖</th></tr></thead>
+        <tbody>
+          <tr><th>是甚麼</th><td>印刷彩色地圖 16 幅</td><td>數碼地形資料 18 幅</td><td>官方圖磚 API</td></tr>
+          <tr><th>價錢</th><td>紙圖另售</td><td>免費 HK$0</td><td>按 Map API 條款使用</td></tr>
+          <tr><th>格式</th><td>紙／沒有官方掃描 PDF</td><td>FGDB GML DWG DGN GeoTIFF</td><td>即時 XYZ PNG</td></tr>
+          <tr><th>適合</th><td>山藝考核、帶上山</td><td>QGIS、CAD、離線製圖</td><td>設計城市／郊遊定向</td></tr>
+        </tbody>
+      </table>
+      <p>下載 iB20000：
+        <a href="https://www.hkmapservice.gov.hk/OneStopSystem/map-search?product=OSSCatB&series=iB20000" target="_blank" rel="noopener">香港地圖服務 2.0</a> ·
+        <a href="https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637" target="_blank" rel="noopener">CSDI</a> ·
+        <a href="https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf" target="_blank" rel="noopener">價目表</a>
       </p>
+      <p><strong>郊遊圖／郊區地圖</strong> — 官方紙本共 5 幅。本系統「郊遊圖」模式以同一套官方地形圖為底，疊加漁護署開放數據：郊野公園、遠足徑、標距柱。</p>
+      <p><strong>坐標</strong> — WGS84 與香港 1980 方格網（EPSG:2326），以及 1 km / 100 m / 10 m 方格，對照 HM20C 圖邊數字。</p>
       <div class="actions">
         <button class="solid" id="about-close" type="button">關閉</button>
       </div>
