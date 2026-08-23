@@ -44,15 +44,22 @@
     <aside class="sidebar">
       <section class="panel">
         <h2>設計路線</h2>
+        <div class="workflow" aria-label="設計步驟">
+          <span class="step done">1　底圖</span><span class="step active">2　圈選</span><span class="step">3　比例／紙張</span><span class="step">4　內容</span>
+        </div>
         <label class="field">路線名稱
           <input id="course-name" maxlength="80" />
         </label>
-        <label class="field">類型
+        <label class="field">底圖類型
           <select id="course-type">
-            <option value="urban">城市定向</option>
-            <option value="countryside">野外／郊遊定向</option>
+            <option value="urban">城市定向</option><option value="countryside">野外／郊遊定向</option>
           </select>
         </label>
+        <div class="row">
+          <label class="field">遊玩方式<select id="play-mode"><option value="linear">越野式（按順序）</option><option value="score">奪分式（自由路線）</option></select></label>
+          <label class="field">列印紙張<select id="paper-size"><option>A3</option><option selected>A4</option><option>A5</option></select></label>
+        </div>
+        <button class="solid" id="btn-lock-frame" type="button" style="width:100%;margin-bottom:8px">鎖定範圍，開始設定內容</button>
         <div class="tools">
           <button class="tool active" data-tool="pan" type="button">平移</button>
           <button class="tool" data-tool="frame" type="button">圈選範圍</button>
@@ -105,6 +112,7 @@
             <textarea id="ed-clue" placeholder="例如：公園入口告示板、石橋北端、燈柱編號"></textarea>
           </label>
           <label class="field">策劃備註（不印給參加者）<textarea id="ed-note"></textarea></label>
+          <label class="field score-field">本 CP 分值<input id="ed-score" type="number" min="0" max="999" step="1" value="0" /></label>
         </div>
         <p class="notice" style="margin:8px 0 0">畫好後按「列印地圖」：紙圖上會有紫紅 CP 圓圈，參加者用紙圖玩，不用手機。</p>
       </section>

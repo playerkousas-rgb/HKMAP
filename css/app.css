@@ -201,6 +201,14 @@ button, input, select, textarea { font-family: inherit; }
   padding: 12px;
   margin-bottom: 12px;
 }
+.workflow { display:flex; gap:4px; margin:-2px 0 10px; flex-wrap:wrap; }
+.step { font-size:10px; padding:4px 7px; border-radius:999px; background:#eee9df; color:var(--muted); }
+.step.done { color:var(--forest-2); }
+.step.active { background:var(--gold-2); color:var(--ink); font-weight:700; }
+.score-field { display:none !important; }
+body.score-mode .score-field { display:flex !important; }
+body.frame-locked .workflow .step:nth-child(2) { background:#dcecdf; }
+body.frame-locked .workflow .step:nth-child(3), body.frame-locked .workflow .step:nth-child(4) { background:var(--gold-2); color:var(--ink); }
 .panel h2 {
   margin: 0 0 10px;
   font-size: 12px;

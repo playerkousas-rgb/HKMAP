@@ -46,6 +46,9 @@ function emptyCourse() {
     system: "Scout System",
     name: "未命名定向路線",
     type: "urban",
+    playMode: "linear",
+    paperSize: "A4",
+    frameLocked: false,
     created: new Date().toISOString(),
     meet: "",
     cutoff: "",
@@ -304,6 +307,7 @@ function orderedControls() {
   const starts = state.course.controls.filter((c) => c.kind === "start");
   const mids = state.course.controls.filter((c) => c.kind === "control");
   const fins = state.course.controls.filter((c) => c.kind === "finish");
+  if (state.course.playMode === "score") return [...starts, ...mids, ...fins];
   return [...starts, ...mids, ...fins];
 }
 
@@ -340,6 +344,7 @@ function renderCourse() {
 }
 
 function addControl(lat, lng, kind) {
+  if (!state.course.frameLocked) { toast(t("請先圈選並鎖定範圍，再加入起點或 CP", "Lock the frame before adding controls")); return; }
   if (kind === "start" && state.course.controls.some((c) => c.kind === "start")) {
     toast(t("已有起點，可拖移現有三角形。", "Start already placed."));
     return;
@@ -357,6 +362,7 @@ function addControl(lat, lng, kind) {
     name: kind === "start" ? "起點" : kind === "finish" ? "終點" : "",
     clue: "",
     note: "",
+    score: 0,
   };
   state.course.controls.push(ctrl);
   state.selectedId = ctrl.id;
@@ -517,6 +523,10 @@ function flySheet(series, id) {
 function renderSidebar() {
   document.getElementById("course-name").value = state.course.name;
   document.getElementById("course-type").value = state.course.type;
+  document.getElementById("play-mode").value = state.course.playMode || "linear";
+  document.getElementById("paper-size").value = state.course.paperSize || "A4";
+  const lockBtn = document.getElementById("btn-lock-frame");
+  lockBtn.textContent = state.course.frameLocked ? "已鎖定範圍（按此解鎖）" : "鎖定範圍，開始設定內容";
   const stats = courseStats();
   document.getElementById("stat-dist").textContent =
     stats.dist >= 1000 ? `${(stats.dist / 1000).toFixed(2)} km` : `${Math.round(stats.dist)} m`;
@@ -564,7 +574,10 @@ function renderSidebar() {
     document.getElementById("ed-name").value = sel.name;
     document.getElementById("ed-clue").value = sel.clue;
     document.getElementById("ed-note").value = sel.note;
+    document.getElementById("ed-score").value = sel.score ?? 0;
   }
+  document.body.classList.toggle("score-mode", state.course.playMode === "score");
+  document.body.classList.toggle("frame-locked", !!state.course.frameLocked);
 }
 
 function renderPrintTable() {
@@ -735,9 +748,15 @@ function bind() {
     state.course.name = e.target.value;
     persist();
   });
-  document.getElementById("course-type").addEventListener("change", (e) => {
-    state.course.type = e.target.value;
-    persist();
+  document.getElementById("course-type").addEventListener("change", (e) => { state.course.type = e.target.value; persist(); });
+  document.getElementById("play-mode").addEventListener("change", (e) => { state.course.playMode = e.target.value; renderSidebar(); renderCourse(); persist(); });
+  document.getElementById("paper-size").addEventListener("change", (e) => { state.course.paperSize = e.target.value; persist(); });
+  document.getElementById("btn-lock-frame").addEventListener("click", () => {
+    if (!frameValid(state.course.frame)) { toast(t("請先在地圖拖出設計範圍", "Draw a frame first")); setTool("frame"); return; }
+    state.course.frameLocked = !state.course.frameLocked;
+    document.getElementById("btn-lock-frame").textContent = state.course.frameLocked ? "已鎖定範圍（按此解鎖）" : "鎖定範圍，開始設定內容";
+    renderSidebar(); persist();
+    toast(state.course.frameLocked ? t("範圍已鎖定，現在可設定 CP 內容", "Frame locked") : t("範圍已解鎖", "Frame unlocked"));
   });
   document.getElementById("ctrl-list").addEventListener("click", (e) => {
     const del = e.target.closest("[data-del]");
@@ -752,7 +771,7 @@ function bind() {
     if (c) map.panTo([c.lat, c.lng]);
     renderSidebar();
   });
-  ["ed-code", "ed-name", "ed-clue", "ed-note"].forEach((id) => {
+  ["ed-code", "ed-name", "ed-clue", "ed-note", "ed-score"].forEach((id) => {
     document.getElementById(id).addEventListener("input", (e) => {
       const sel = state.course.controls.find((c) => c.id === state.selectedId);
       if (!sel) return;
