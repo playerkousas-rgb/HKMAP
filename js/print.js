@@ -47,7 +47,7 @@ const descBody = document.getElementById("desc-body");
 
 if (!course || !Array.isArray(course.controls) || !course.controls.length) {
   title.textContent = "未有路線";
-  meta.textContent = "請先返回設計頁，在地圖上放置起點、檢查點與終點。";
+  meta.textContent = "請先按「← 返回設計」放置起點、檢查點與終點。若畫面卡住，可按「清除暫存」。";
 } else {
   title.textContent = course.name || "定向地圖";
 }
@@ -212,6 +212,11 @@ document.getElementById("opt-coords").addEventListener("change", renderSheet);
 document.getElementById("btn-print").addEventListener("click", () => {
   map.invalidateSize();
   setTimeout(() => window.print(), 250);
+});
+document.getElementById("btn-wipe-print").addEventListener("click", () => {
+  if (!confirm("清除本機暫存並返回設計頁？未匯出的路線無法復原。")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  location.href = "index.html";
 });
 window.addEventListener("beforeprint", () => map.invalidateSize());
 
