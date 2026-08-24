@@ -9,14 +9,12 @@ import {
   csdiExportLayer,
   formatDeg,
   frameBounds,
-  frameSize,
   frameValid,
   fromHk80,
   gridBearing,
   gridRefs,
   landsdUrl,
   magneticBearing,
-  normalizeFrame,
   paperAreaMeters,
   parseGridInput,
   planarDistance,
@@ -25,7 +23,7 @@ import {
   toHk80,
   zoomForScale,
 } from "./hkgeo.js";
-import { drawOverprint } from "./overprint.js";
+import { drawOverprint, orderedControls as orderControls } from "./overprint.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
@@ -36,6 +34,8 @@ const state = {
   lang: "zh",
   gridOn: true,
   labelsOn: true,
+  linesOn: true,
+  leaderOn: false,
   course: emptyCourse(),
   selectedId: null,
   measure: [],
@@ -43,16 +43,14 @@ const state = {
 
 function emptyCourse() {
   return {
-    version: 1,
+    version: 2,
     system: "Scout System",
     name: "未命名定向路線",
     type: "urban",
     playMode: "linear",
     paperSize: "A4",
-    frameLocked: false,
     scaleLock: 20000,
     scaleLocked: false,
-    autoFrame: false,
     created: new Date().toISOString(),
     meet: "",
     cutoff: "",
@@ -146,8 +144,6 @@ function hasMeaningfulCourse(course) {
   if (!course) return false;
   return Boolean(
     (course.controls && course.controls.length) ||
-      frameValid(course.frame) ||
-      course.frameLocked ||
       course.scaleLocked ||
       course.meet ||
       course.cutoff ||
@@ -167,8 +163,8 @@ function applySnapshot(snap) {
   if (prevScaleLocked && !state.course.scaleLocked) setZoomControls(true);
   if (!prevScaleLocked && state.course.scaleLocked) setZoomControls(false);
   applyBasemap();
+  applyPaper();
   renderCourse();
-  renderFrame();
   renderMeasure();
   renderSidebar();
   syncScaleSelect();
@@ -251,8 +247,8 @@ function startFresh({ wipe = false, reload = false } = {}) {
   map.getContainer().style.cursor = "";
   map.dragging.enable();
   applyBasemap();
+  applyPaper();
   renderCourse();
-  renderFrame();
   renderMeasure();
   renderSidebar();
   syncScaleSelect();
@@ -295,68 +291,6 @@ function wipeStorageAndReload() {
   location.href = url.href;
 }
 
-function updateWorkflow() {
-  const steps = document.querySelectorAll(".workflow .step");
-  if (!steps.length) return;
-  const frame = frameValid(state.course.frame);
-  const locked = !!state.course.frameLocked;
-  steps[0].className = "step done";
-  steps[1].className = "step" + (frame ? " done" : " active");
-  steps[2].className = "step" + (frame && !locked ? " active" : frame ? " done" : "");
-  steps[3].className = "step" + (locked ? " active" : "");
-}
-
-function goToStep(n) {
-  remember();
-  if (n <= 3 && state.course.frameLocked) state.course.frameLocked = false;
-  if (n <= 2 && state.course.scaleLocked) {
-    state.course.scaleLocked = false;
-    setZoomControls(true);
-    syncScaleLockButton();
-    updateScaleChip();
-  }
-  if (n <= 1 && frameValid(state.course.frame)) {
-    state.course.frame = null;
-    state.course.autoFrame = false;
-    draw.start = null;
-    draw.temp = null;
-    renderFrame();
-  }
-  if (n >= 4) {
-    if (!frameValid(state.course.frame)) {
-      toast(t("請先圈選範圍", "Draw a frame first"));
-      setTool("frame");
-      persist();
-      renderSidebar();
-      return;
-    }
-    state.course.frameLocked = true;
-  }
-  renderSidebar();
-  persist();
-}
-
-function stepBack() {
-  if (state.course.frameLocked) {
-    remember();
-    state.course.frameLocked = false;
-    renderSidebar();
-    persist();
-    toast(t("已返回：範圍已解鎖，可再改圈選／比例", "Back: frame unlocked"));
-    return;
-  }
-  if (state.course.scaleLocked) {
-    unlockScale();
-    toast(t("已返回：比例已解鎖", "Back: scale unlocked"));
-    return;
-  }
-  if (frameValid(state.course.frame)) {
-    clearFrame();
-    return;
-  }
-  toast(t("已在第一步（選底圖／搜尋地點）", "Already at the first step"));
-}
-
 async function runClearAction(action) {
   if (action === "undo") {
     undo();
@@ -366,18 +300,10 @@ async function runClearAction(action) {
     clearMeasure();
     return;
   }
-  if (action === "frame") {
-    if (!frameValid(state.course.frame)) {
-      toast(t("尚未圈選範圍", "No frame yet"));
-      return;
-    }
-    clearFrame();
-    return;
-  }
   if (action === "cps") {
     const ok = await askConfirm({
       title: t("清除檢查點？", "Clear controls?"),
-      body: t("只刪除起點／CP／終點，範圍與比例設定會保留。可用「返回」復原。", "Deletes start / controls / finish. Frame and scale stay. Undo still works."),
+      body: t("只刪除起點／CP／終點，紙張與比例設定會保留。可用「返回」復原。", "Deletes start / controls / finish. Paper and scale stay. Undo still works."),
       ok: t("清除檢查點", "Clear controls"),
       danger: true,
     });
@@ -387,7 +313,7 @@ async function runClearAction(action) {
   if (action === "course") {
     const ok = await askConfirm({
       title: t("開新路線？", "New course?"),
-      body: t("會清空檢查點、範圍與鎖定，並覆寫本機暫存。建議先匯出 JSON。", "Clears controls, frame and locks, and overwrites the browser draft. Export JSON first if you need it."),
+      body: t("會清空檢查點與鎖定，並覆寫本機暫存。建議先匯出 JSON。", "Clears controls and locks, and overwrites the browser draft. Export JSON first if you need it."),
       ok: t("全新路線", "Start fresh"),
       danger: true,
     });
@@ -400,7 +326,7 @@ async function runClearAction(action) {
   if (action === "storage") {
     const ok = await askConfirm({
       title: t("清除本機暫存？", "Clear browser storage?"),
-      body: t("瀏覽器記住的路線、範圍、比例鎖定都會刪除，畫面會重新載入。未匯出的資料無法復原。條款同意會保留。", "The saved course, frame and scale lock in this browser will be deleted and the page will reload. Unexported work cannot be recovered. Terms agreement is kept."),
+      body: t("瀏覽器記住的路線、比例鎖定都會刪除，畫面會重新載入。未匯出的資料無法復原。條款同意會保留。", "The saved course and scale lock in this browser will be deleted and the page will reload. Unexported work cannot be recovered. Terms agreement is kept."),
       ok: t("清除並重新開始", "Clear and restart"),
       danger: true,
     });
@@ -408,7 +334,7 @@ async function runClearAction(action) {
   }
 }
 
-/* ---------- map ---------- */
+/* ---------- map（白紙＝列印頁，地圖大小＝實際圖面 mm） ---------- */
 const map = L.map("map", {
   center: HK_CENTER,
   zoom: 13,
@@ -438,11 +364,6 @@ const posts = csdiExportLayer(DATASETS.posts, "csdiPosts");
 const courseLayer = L.layerGroup().addTo(map);
 const measureLayer = L.layerGroup().addTo(map);
 const gridLayer = L.layerGroup().addTo(map);
-const frameLayer = L.layerGroup().addTo(map);
-const frameHandles = L.layerGroup().addTo(map);
-const framePreview = L.layerGroup().addTo(map);
-
-const draw = { start: null, temp: null };
 
 function applyBasemap() {
   [basemap, imagery, parks, trails, posts].forEach((l) => {
@@ -473,11 +394,34 @@ function setLayer(id) {
   if (id !== state.layer) remember();
   state.layer = id;
   if (id === "countryside") state.course.type = "countryside";
-  if (id === "hm20c" && state.course.type === "countryside") {
-    /* keep */
-  }
   applyBasemap();
+  renderSheetInfo();
   persist();
+}
+
+/* ---------- 紙張（設計畫布＝列印頁） ---------- */
+function applyPaper() {
+  const paper = state.course.paperSize || "A4";
+  document.body.dataset.paper = paper;
+  map.invalidateSize();
+  updatePaperInfo();
+}
+
+function updatePaperInfo() {
+  const el = document.getElementById("paper-info");
+  if (!el) return;
+  const paper = state.course.paperSize || "A4";
+  const locked = !!state.course.scaleLocked;
+  const s = locked ? currentScaleLock() : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
+  const a = paperAreaMeters(paper, s);
+  el.innerHTML =
+    `白紙＝列印範圍：<strong>${paper} 橫向</strong> @ <strong>${scaleLabel(s)}</strong>` +
+    (locked ? "（已鎖定）" : "（未鎖定，隨畫面縮放）") +
+    `，紙面覆蓋約 <strong>${fmtLen(a.w)} × ${fmtLen(a.h)}</strong>。紙以外不會列印。`;
+}
+
+function fmtLen(m) {
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
 /* ---------- HK1980 1 km grid ---------- */
@@ -547,299 +491,9 @@ function renderGrid() {
   }
 }
 
-/* ---------- design frame ---------- */
-function renderFrame() {
-  frameLayer.clearLayers();
-  if (draw.temp) {
-    L.rectangle(L.latLngBounds(draw.start, draw.temp), {
-      color: "#d7b056",
-      weight: 2,
-      dashArray: "6 4",
-      fillOpacity: 0.06,
-      interactive: false,
-    }).addTo(frameLayer);
-  }
-  const frame = state.course.frame;
-  if (!frameValid(frame)) {
-    updateFrameInfo();
-    return;
-  }
-  const outer = [
-    [HK_BOUNDS[0][0] - 0.05, HK_BOUNDS[0][1] - 0.05],
-    [HK_BOUNDS[0][0] - 0.05, HK_BOUNDS[1][1] + 0.05],
-    [HK_BOUNDS[1][0] + 0.05, HK_BOUNDS[1][1] + 0.05],
-    [HK_BOUNDS[1][0] + 0.05, HK_BOUNDS[0][1] - 0.05],
-  ];
-  const hole = [
-    [frame.south, frame.west],
-    [frame.south, frame.east],
-    [frame.north, frame.east],
-    [frame.north, frame.west],
-  ];
-  L.polygon([outer, hole], {
-    stroke: false,
-    fillColor: "#0f1c17",
-    fillOpacity: 0.42,
-    interactive: false,
-  }).addTo(frameLayer);
-  L.rectangle(frameBounds(frame), {
-    color: "#d7b056",
-    weight: 2.5,
-    fill: false,
-    interactive: false,
-  }).addTo(frameLayer);
-  addFrameHandles(frame);
-  updateFrameInfo();
-}
-
-/* ---------- frame handles: 拖移中心、拉角改大小 ---------- */
-function shiftFrame(f, dLat, dLng) {
-  return { south: f.south + dLat, north: f.north + dLat, west: f.west + dLng, east: f.east + dLng };
-}
-
-function drawFramePreview(f) {
-  framePreview.clearLayers();
-  L.rectangle(frameBounds(f), {
-    color: "#d7b056",
-    weight: 2,
-    dashArray: "6 4",
-    fillOpacity: 0.08,
-    interactive: false,
-  }).addTo(framePreview);
-  const { w, h } = frameSize(f);
-  L.marker([(f.south + f.north) / 2, (f.west + f.east) / 2], {
-    icon: L.divIcon({
-      className: "frame-size-tip",
-      html: `${Math.round(w)} m × ${Math.round(h)} m`,
-      iconSize: [140, 20],
-      iconAnchor: [70, 10],
-    }),
-    interactive: false,
-  }).addTo(framePreview);
-}
-
-function commitFrameRaw(f, resized) {
-  const frame = normalizeFrame({ lat: f.south, lng: f.west }, { lat: f.north, lng: f.east });
-  const { w, h } = frameSize(frame);
-  if (w < 40 || h < 40) {
-    toast(t("範圍太小，請再拖大一點", "Frame too small"));
-    framePreview.clearLayers();
-    renderFrame();
-    return;
-  }
-  state.course.frame = frame;
-  if (resized) state.course.autoFrame = false; // 拉過角 = 自訂大小
-  framePreview.clearLayers();
-  renderFrame();
-  updateFrameInfo();
-  persist();
-}
-
-function addFrameHandles(frame) {
-  frameHandles.clearLayers();
-  framePreview.clearLayers();
-  /* 中心：拖移 */
-  const move = L.marker([(frame.south + frame.north) / 2, (frame.west + frame.east) / 2], {
-    icon: L.divIcon({ className: "frame-handle frame-move", html: "✥", iconSize: [24, 24], iconAnchor: [12, 12] }),
-    draggable: true,
-    zIndexOffset: 1000,
-    autoPan: false,
-  });
-  let ms = null;
-  let mf = null;
-  move.on("dragstart", (e) => {
-    remember();
-    ms = e.target.getLatLng();
-    mf = { ...state.course.frame };
-  });
-  move.on("drag", (e) => {
-    const ll = e.target.getLatLng();
-    drawFramePreview(shiftFrame(mf, ll.lat - ms.lat, ll.lng - ms.lng));
-  });
-  move.on("dragend", (e) => {
-    const ll = e.target.getLatLng();
-    commitFrameRaw(shiftFrame(mf, ll.lat - ms.lat, ll.lng - ms.lng), false);
-  });
-  move.bindTooltip(t("拖移範圍", "Move frame"), { direction: "top", opacity: 0.9 });
-  move.addTo(frameHandles);
-
-  /* 東南角：拉改大小（autoFrame 時唔可以超過圖面上限） */
-  const rs = L.marker([frame.south, frame.east], {
-    icon: L.divIcon({ className: "frame-handle frame-resize", html: "◢", iconSize: [22, 22], iconAnchor: [11, 11] }),
-    draggable: true,
-    zIndexOffset: 1000,
-    autoPan: false,
-  });
-  const previewFromSE = (ll) => {
-    const f0 = state.course.frame;
-    const aHk = toHk80(f0.north, f0.west);
-    const pHk = toHk80(ll.lat, ll.lng);
-    let wM = Math.max(40, pHk.e - aHk.e);
-    let hM = Math.max(40, aHk.n - pHk.n);
-    if (state.course.autoFrame) {
-      const a = paperAreaMeters(state.course.paperSize || "A4", currentScaleLock());
-      wM = Math.min(wM, Math.max(40, a.w - 40));
-      hM = Math.min(hM, Math.max(40, a.h - 40));
-    }
-    const seHk = fromHk80(aHk.e + wM, aHk.n - hM);
-    return { south: seHk.lat, west: f0.west, north: f0.north, east: seHk.lng };
-  };
-  rs.on("dragstart", () => remember());
-  rs.on("drag", (e) => drawFramePreview(previewFromSE(e.target.getLatLng())));
-  rs.on("dragend", (e) => commitFrameRaw(previewFromSE(e.target.getLatLng()), true));
-  rs.bindTooltip(t("拉角改大小", "Resize frame"), { direction: "left", opacity: 0.9 });
-  rs.addTo(frameHandles);
-}
-
-function fmtLen(m) {
-  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
-}
-
-/** 圈選範圍超出（紙張＋比例）時，建議最接近現狀、能精確出圖的組合。 */
-function fitSuggestion(w, h) {
-  const papers = ["A5", "A4", "A3"];
-  const scales = [5000, 10000, 15000, 20000];
-  const curP = Math.max(0, papers.indexOf(state.course.paperSize || "A4"));
-  const curS = Math.max(0, scales.indexOf(currentScaleLock()));
-  let best = null;
-  let bestCost = Infinity;
-  papers.forEach((p, pi) => {
-    scales.forEach((s, si) => {
-      const a = paperAreaMeters(p, s);
-      if (w <= a.w - 40 && h <= a.h - 40) {
-        // 換比例（放大分母）優於換紙張；兩者都越少改越好
-        const cost = Math.abs(pi - curP) * 10 + Math.max(0, si - curS) * 3;
-        if (cost < bestCost) {
-          bestCost = cost;
-          best = { p, s };
-        }
-      }
-    });
-  });
-  if (!best) return null;
-  return best; // { p, s }
-}
-
-/** 方式 1：按（鎖定）比例＋紙張建出「＝圖面大小」嘅框，可以拖移／拉角。 */
-function autoFrameFromScalePaper(keepCenter, skipRemember) {
-  const scale = currentScaleLock();
-  const paper = state.course.paperSize || "A4";
-  const a = paperAreaMeters(paper, scale);
-  // 留 60 m 邊（比 fit 檢查嘅 40 m 多啲，避免浮點誤差誤報「超出」）
-  const w = Math.max(40, a.w - 60);
-  const h = Math.max(40, a.h - 60);
-  const f = state.course.frame;
-  if (!skipRemember) remember();
-  const c =
-    keepCenter && frameValid(f)
-      ? { lat: (f.south + f.north) / 2, lng: (f.west + f.east) / 2 }
-      : map.getCenter();
-  const hk = toHk80(c.lat, c.lng);
-  const sw = fromHk80(hk.e - w / 2, hk.n - h / 2);
-  const ne = fromHk80(hk.e + w / 2, hk.n + h / 2);
-  state.course.frame = { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng };
-  state.course.autoFrame = true;
-  renderFrame();
-  updateFrameInfo();
-  persist();
-}
-
-/** 方式 2：此範圍喺呢張紙上，邊啲標準比例放得曬（分母由細到粗）。 */
-function fitScalesForFrame(w, h, paper) {
-  return SCALE_PRESETS.filter((s) => {
-    const a = paperAreaMeters(paper, s);
-    return w <= a.w - 40 && h <= a.h - 40;
-  });
-}
-
-function updateFrameInfo() {
-  const el = document.getElementById("frame-info");
-  if (!el) return;
-  const frame = state.course.frame;
-  const scale = currentScaleLock();
-  const paper = state.course.paperSize || "A4";
-  const area = paperAreaMeters(paper, scale);
-  const maxTxt = `${fmtLen(area.w)} × ${fmtLen(area.h)}`;
-  if (!frameValid(frame)) {
-    el.innerHTML =
-      `先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。<br>` +
-      `<strong>${paper} @ ${scaleLabel(scale)}</strong> 圖面最大約 <strong>${maxTxt}</strong>。` +
-      (state.course.scaleLocked
-        ? ` 或按 <b>📐 按比例＋紙張建框</b> 直接建出。`
-        : `，圈選時可參考。`);
-    return;
-  }
-  const { w, h } = frameSize(frame);
-  const autoTag = state.course.autoFrame ? `（自動框）` : "";
-  let html = `已圈選 <strong>${Math.round(w)} m × ${Math.round(h)} m</strong>${autoTag}。✥ 可拖移、◢ 可拉角改大小。`;
-  const fits = fitScalesForFrame(w, h, paper);
-  if (fits.includes(scale)) {
-    const others = fits.filter((s) => s !== scale);
-    html += ` ✔ <strong>${scaleLabel(scale)}</strong> 放得曬入 ${paper}，可按此比例精確出圖`;
-    if (others.length) {
-      html += `（其他放得下：${others.map(scaleLabel).join("、")}）`;
-    }
-  } else if (fits.length) {
-    const s = fits[0]; // 放得曬所需最小分母
-    html += ` <span style="color:#9a5b00">超出 ${paper} @ ${scaleLabel(scale)}（最大約 ${maxTxt}）。要放得曬入 ${paper}，比例要用 <strong>${scaleLabel(s)}</strong> 或更大分母　</span>` +
-      `<button class="ghost" data-apply-scale="${s}" type="button" style="font-size:11px;padding:3px 8px">改用 ${scaleLabel(s)}</button>`;
-  } else {
-    const best = fitSuggestion(w, h);
-    if (!best) {
-      html += ` <span style="color:#9a5b00">${paper} 任何標準比例都放唔下（最大 ${maxTxt}），請縮小範圍。</span>`;
-    } else {
-      const a = paperAreaMeters(best.p, best.s);
-      html += ` <span style="color:#9a5b00">${paper} 任何標準比例都放唔下（最大 ${maxTxt}）。建議 ${best.p} + ${scaleLabel(best.s)}（最大約 ${fmtLen(a.w)} × ${fmtLen(a.h)}）　</span>` +
-        `<button class="ghost" data-apply-paper="${best.p}" data-apply-scale="${best.s}" type="button" style="font-size:11px;padding:3px 8px">改用 ${best.p} + ${scaleLabel(best.s)}</button>`;
-    }
-  }
-  el.innerHTML = html;
-}
-
-function fitFrame() {
-  if (!frameValid(state.course.frame)) {
-    toast(t("尚未圈選範圍", "No frame yet"));
-    return;
-  }
-  map.fitBounds(frameBounds(state.course.frame), { padding: [24, 24], animate: false });
-}
-
-function clearFrame() {
-  remember();
-  state.course.frame = null;
-  state.course.autoFrame = false;
-  draw.start = null;
-  draw.temp = null;
-  renderFrame();
-  persist();
-  toast(t("已清除圈選範圍", "Frame cleared"));
-}
-
-function commitFrame(a, b) {
-  const frame = normalizeFrame(a, b);
-  const { w, h } = frameSize(frame);
-  if (w < 40 || h < 40) {
-    toast(t("範圍太小，請再拖大一點", "Frame too small"));
-    return;
-  }
-  remember();
-  state.course.frame = frame;
-  state.course.autoFrame = false; // 手動圈選 = 自訂範圍
-  draw.start = null;
-  draw.temp = null;
-  renderFrame();
-  persist();
-  map.fitBounds(frameBounds(frame), { padding: [28, 28], animate: true });
-  toast(t(`已圈選 ${Math.round(w)} × ${Math.round(h)} 米`, "Frame set"));
-}
-
 /* ---------- course graphics ---------- */
 function orderedControls() {
-  const starts = state.course.controls.filter((c) => c.kind === "start");
-  const mids = state.course.controls.filter((c) => c.kind === "control");
-  const fins = state.course.controls.filter((c) => c.kind === "finish");
-  if (state.course.playMode === "score") return [...starts, ...mids, ...fins];
-  return [...starts, ...mids, ...fins];
+  return orderControls(state.course.controls);
 }
 
 function nextCode() {
@@ -854,7 +508,7 @@ function nextCode() {
 function renderCourse() {
   drawOverprint(courseLayer, state.course.controls, {
     draggable: true,
-    lines: true,
+    lines: state.linesOn,
     onDragStart() {
       remember();
     },
@@ -874,11 +528,11 @@ function renderCourse() {
       renderSidebar();
     },
   });
-  renderPrintTable();
+  renderSheetInfo();
+  updateOffPaper();
 }
 
 function addControl(lat, lng, kind) {
-  if (!state.course.frameLocked) { toast(t("請先圈選並鎖定範圍，再加入起點或 CP", "Lock the frame before adding controls")); return; }
   if (kind === "start" && state.course.controls.some((c) => c.kind === "start")) {
     toast(t("已有起點，可拖移現有三角形。", "Start already placed."));
     return;
@@ -951,35 +605,11 @@ function renderMeasure() {
 }
 
 /* ---------- events ---------- */
-map.on("mousedown", (e) => {
-  if (state.tool !== "frame" || e.originalEvent.button) return;
-  if (e.originalEvent.target.closest(".frame-handle")) return; // 手柄：拖移／拉角，唔好另起新框
-  L.DomEvent.stop(e);
-  map.dragging.disable();
-  draw.start = e.latlng;
-  draw.temp = e.latlng;
-  renderFrame();
-});
 map.on("mousemove", (e) => {
   updateReadout(e.latlng);
-  if (state.tool !== "frame" || !draw.start) return;
-  draw.temp = e.latlng;
-  renderFrame();
 });
-function finishFrameDraw() {
-  if (state.tool !== "frame" || !draw.start) return;
-  const start = draw.start;
-  const end = draw.temp;
-  draw.start = null;
-  draw.temp = null;
-  map.dragging.enable();
-  if (end) commitFrame(start, end);
-}
-map.on("mouseup", finishFrameDraw);
-document.addEventListener("mouseup", finishFrameDraw);
 
 map.on("click", (e) => {
-  if (state.tool === "frame") return;
   if (state.tool === "start" || state.tool === "control" || state.tool === "finish") {
     addControl(e.latlng.lat, e.latlng.lng, state.tool);
     return;
@@ -995,6 +625,9 @@ map.on("moveend zoomend", () => {
   renderGrid();
   resnapScale();
   updateScaleChip();
+  updatePaperInfo();
+  renderSheetInfo();
+  updateOffPaper();
 });
 
 function updateReadout(ll) {
@@ -1050,14 +683,9 @@ function lockScale(silent) {
   map.setZoom(zoomForScale(map.getCenter().lat, scale), { animate: false });
   syncScaleLockButton();
   updateScaleChip();
-  /* 方式 1：LOCK 比例後自動建出「＝圖面大小」嘅框（如果仲未圈） */
-  let created = false;
-  if (!frameValid(state.course.frame)) {
-    autoFrameFromScalePaper(false, true);
-    created = true;
-  }
+  updatePaperInfo();
+  renderSheetInfo();
   if (!silent) persist();
-  return created;
 }
 
 function unlockScale() {
@@ -1066,6 +694,8 @@ function unlockScale() {
   setZoomControls(true);
   syncScaleLockButton();
   updateScaleChip();
+  updatePaperInfo();
+  renderSheetInfo();
   persist();
 }
 
@@ -1096,24 +726,80 @@ function updateScaleChip() {
 }
 
 function setTool(tool) {
-  if (tool === "clear-frame") {
-    clearFrame();
-    return;
-  }
   state.tool = tool;
   document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
   const cursor =
     tool === "pan" ? "" : tool === "delete" ? "not-allowed" : "crosshair";
   map.getContainer().style.cursor = cursor;
-  if (tool === "frame") {
-    map.dragging.disable();
-    toast(t("在地圖上拖出長方形，圈選設計範圍", "Drag a box on the map"));
-  } else {
-    map.dragging.enable();
-    draw.start = null;
-    draw.temp = null;
-    renderFrame();
+}
+
+/* ---------- 白紙外檢查（設計不會超出列印範圍） ---------- */
+function controlsOffPaper() {
+  const b = map.getBounds();
+  return (state.course.controls || []).filter((c) => !b.contains([c.lat, c.lng]));
+}
+
+function updateOffPaper() {
+  const chip = document.getElementById("offpaper-chip");
+  if (!chip) return;
+  const out = controlsOffPaper();
+  if (!out.length) {
+    chip.hidden = true;
+    return;
   }
+  chip.hidden = false;
+  chip.textContent = t(
+    `⚠ ${out.length} 個點在白紙外，唔會印出 — 按此對齊`,
+    `⚠ ${out.length} point(s) off the paper — click to fit`
+  );
+}
+
+function fitCourse() {
+  const list = orderedControls();
+  if (!list.length) {
+    toast(t("未有起點／CP／終點", "No controls yet"));
+    return;
+  }
+  const bounds = L.latLngBounds(list.map((c) => [c.lat, c.lng]));
+  if (state.course.scaleLocked) {
+    map.setView(bounds.getCenter(), map.getZoom(), { animate: true });
+    setTimeout(() => {
+      if (controlsOffPaper().length) {
+        toast(t("比例已鎖定，路線仍超出紙面：請改大分母比例或改大紙張", "Scale locked and course still exceeds the paper — use a coarser scale or larger paper"));
+      }
+    }, 350);
+  } else {
+    map.fitBounds(bounds.pad(0.25), { animate: true });
+  }
+}
+
+/* ---------- 列印（＝畫面白紙，所見即所得） ---------- */
+async function doPrint() {
+  persist();
+  if (!state.course.controls.length) {
+    const ok = await askConfirm({
+      title: t("未有檢查點", "No controls yet"),
+      body: t("紙上仲未有起點／CP／終點。要照樣列印空白底圖嗎？", "No start / controls / finish yet. Print the base map anyway?"),
+      ok: t("照樣列印", "Print anyway"),
+    });
+    if (!ok) return;
+  } else {
+    const out = controlsOffPaper();
+    if (out.length) {
+      const ok = await askConfirm({
+        title: t("有檢查點在白紙外", "Controls off the paper"),
+        body: t(
+          `${out.length} 個點唔喺白紙範圍內，列印唔會印到（編號：${out.map((c) => c.code).join("、")}）。可先按「對齊路線」或移動紙面。仍要列印？`,
+          `${out.length} control(s) are outside the paper and will not print. Fit the course or pan first. Print anyway?`
+        ),
+        ok: t("照樣列印", "Print anyway"),
+        danger: true,
+      });
+      if (!ok) return;
+    }
+  }
+  map.invalidateSize();
+  setTimeout(() => window.print(), 200);
 }
 
 /* ---------- sidebar ---------- */
@@ -1122,13 +808,13 @@ function renderSheets() {
   hm.innerHTML = HM20C_SHEETS.filter((s) => s.id !== "1")
     .map(
       (s) =>
-        `<button class="sheet" data-series="hm20c" data-id="${s.id}"><b>${s.id}</b>${s.name}</button>`
+        `<button class="sheet-btn" data-series="hm20c" data-id="${s.id}"><b>${s.id}</b>${s.name}</button>`
     )
     .join("");
   const cm = document.getElementById("cm-grid");
   cm.innerHTML = COUNTRYSIDE_SHEETS.map(
     (s) =>
-      `<button class="sheet" data-series="cm" data-id="${s.id}"><b>${s.id.replace("CM-", "")}</b>${s.name}</button>`
+      `<button class="sheet-btn" data-series="cm" data-id="${s.id}"><b>${s.id.replace("CM-", "")}</b>${s.name}</button>`
   ).join("");
 }
 
@@ -1136,8 +822,8 @@ function flySheet(series, id) {
   const list = series === "cm" ? COUNTRYSIDE_SHEETS : HM20C_SHEETS;
   const s = list.find((x) => x.id === id);
   if (!s) return;
-  map.setView(s.center, s.zoom);
-  document.querySelectorAll(".sheet").forEach((b) => b.classList.toggle("active", b.dataset.id === id));
+  map.setView(s.center, state.course.scaleLocked ? map.getZoom() : s.zoom);
+  document.querySelectorAll(".sheet-btn").forEach((b) => b.classList.toggle("active", b.dataset.id === id));
 }
 
 function renderSidebar() {
@@ -1145,8 +831,6 @@ function renderSidebar() {
   document.getElementById("course-type").value = state.course.type;
   document.getElementById("play-mode").value = state.course.playMode || "linear";
   document.getElementById("paper-size").value = state.course.paperSize || "A4";
-  const lockBtn = document.getElementById("btn-lock-frame");
-  lockBtn.textContent = state.course.frameLocked ? "已鎖定範圍（按此解鎖）" : "鎖定範圍，開始設定內容";
   const stats = courseStats();
   document.getElementById("stat-dist").textContent =
     stats.dist >= 1000 ? `${(stats.dist / 1000).toFixed(2)} km` : `${Math.round(stats.dist)} m`;
@@ -1159,16 +843,17 @@ function renderSidebar() {
   document.getElementById("course-cutoff").value = state.course.cutoff || "";
   document.getElementById("course-sos").value = state.course.sos || "";
 
+  const stats2 = stats;
   const list = orderedControls();
   const box = document.getElementById("ctrl-list");
   if (!list.length) {
-    box.innerHTML = `<div class="empty">用上方工具在地圖上放置起點 △、檢查點 ○、終點 ◎。</div>`;
+    box.innerHTML = `<div class="empty">用上方工具在白紙上放置起點 △、檢查點 ○、終點 ◎。</div>`;
   } else {
     box.innerHTML = list
       .map((c, i) => {
         const hk = toHk80(c.lat, c.lng);
         const g = gridRefs(hk.e, hk.n);
-        const leg = i > 0 ? stats.legs[i - 1] : null;
+        const leg = i > 0 ? stats2.legs[i - 1] : null;
         const extra = leg
           ? `${Math.round(leg.d)} m · 方格 ${formatDeg(leg.g)} · 磁北 ${formatDeg(leg.m)}`
           : t("出發", "Start");
@@ -1197,45 +882,48 @@ function renderSidebar() {
     document.getElementById("ed-score").value = sel.score ?? 0;
   }
   document.body.classList.toggle("score-mode", state.course.playMode === "score");
-  document.body.classList.toggle("frame-locked", !!state.course.frameLocked);
-  updateWorkflow();
+  updatePaperInfo();
   updateHistoryButtons();
 }
 
-function renderPrintTable() {
+/* ---------- 紙面圖名／說明表（直接印出的內容） ---------- */
+function renderSheetInfo() {
+  const titleEl = document.getElementById("sheet-title");
+  const metaEl = document.getElementById("sheet-meta");
+  const descBody = document.getElementById("desc-body");
+  if (!titleEl || !metaEl || !descBody) return;
   const stats = courseStats();
   const list = orderedControls();
-  const rows = list
+  titleEl.textContent = state.course.name || "定向地圖";
+  const kind = state.course.type === "countryside" ? "野外／郊遊定向" : "城市定向";
+  const mode = state.course.playMode === "score" ? "奪分式（自由路線）" : "越野式（按順序）";
+  const distTxt = stats.dist >= 1000 ? `${(stats.dist / 1000).toFixed(2)} km` : `${Math.round(stats.dist)} m`;
+  const s = state.course.scaleLocked
+    ? currentScaleLock()
+    : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
+  let meta = `${kind}　·　${mode}　·　比例 ${scaleLabel(s)}${state.course.scaleLocked ? "（鎖定）" : ""}　·　${list.length} 個點　·　約 ${distTxt}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
+  if (state.course.meet) meta += `　·　集合 ${state.course.meet}`;
+  if (state.course.cutoff) meta += `　·　截止 ${state.course.cutoff}`;
+  if (state.course.sos) meta += `　·　緊急 ${state.course.sos}`;
+  metaEl.textContent = meta;
+
+  descBody.innerHTML = list
     .map((c, i) => {
       const hk = toHk80(c.lat, c.lng);
       const g = gridRefs(hk.e, hk.n);
-      const leg = i > 0 ? stats.legs[i - 1] : null;
+      const leg = i > 0 ? `${Math.round(stats.legs[i - 1].d)} m` : "—";
+      const what = c.kind === "start" ? "起點" : c.kind === "finish" ? "終點" : "檢查點";
+      const score =
+        state.course.playMode === "score" && c.kind === "control" ? `　·　${c.score ?? 0} 分` : "";
       return `<tr>
-        <td>${c.code}</td>
-        <td>${c.kind === "start" ? "起點" : c.kind === "finish" ? "終點" : "檢查點"}</td>
-        <td>${c.name || ""}</td>
-        <td>${c.clue || ""}</td>
-        <td>${g.full}</td>
-        <td>${g.fig6}</td>
-        <td>${leg ? Math.round(leg.d) + " m" : "—"}</td>
-        <td>${leg ? formatDeg(leg.g) : "—"}</td>
+        <td><strong>${c.code}</strong></td>
+        <td>${what}${c.name ? "　" + c.name : ""}${c.clue ? "　—　" + c.clue : ""}${score}</td>
+        <td class="leader-only">${g.full}</td>
+        <td class="leader-only">${g.fig6}</td>
+        <td>${leg}</td>
       </tr>`;
     })
     .join("");
-  document.getElementById("print-body").innerHTML = `
-    <h2>Scout System　${state.course.name}</h2>
-    <p>類型：${state.course.type === "urban" ? "城市定向" : "野外／郊遊定向"}　·　總距 ${
-      stats.dist >= 1000 ? (stats.dist / 1000).toFixed(2) + " km" : Math.round(stats.dist) + " m"
-    }　·　估計步行 ${walkMinutes(stats.dist, state.course.type !== "urban")} 分鐘　·　磁偏角 ${MAG_DECLINATION_WEST}°W　·　© Scout System</p>
-    <p>集合／撤退：${state.course.meet || "（未填）"}　·　截止：${state.course.cutoff || "（未填）"}　·　緊急：${state.course.sos || "（未填）"}</p>
-    <p>底圖：地政總署地形圖 API（對應 HM20C／免費 iB20000 數碼地形圖）${
-      state.layer === "countryside" ? "；郊遊圖層：漁農自然護理署（CSDI）" : ""
-    }。Map from Lands Department.</p>
-    <table>
-      <thead><tr><th>編號</th><th>種類</th><th>名稱</th><th>提示</th><th>HK1980</th><th>100m 方格</th><th>段距</th><th>方格方位</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
 }
 
 /* ---------- persistence ---------- */
@@ -1313,15 +1001,17 @@ function importCourse(file) {
       state.course = { ...emptyCourse(), ...data, system: "Scout System" };
       if (!SCALE_PRESETS.includes(Number(state.course.scaleLock))) state.course.scaleLock = 20000;
       if (wasLocked && !state.course.scaleLocked) setZoomControls(true);
+      applyPaper();
       renderCourse();
       renderSidebar();
       syncScaleSelect();
       persist();
-      if (state.course.controls[0]) {
-        map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
+      /* 舊版檔案有「圈選範圍」：對齊一次，之後以白紙為準 */
+      if (frameValid(state.course.frame)) {
+        map.fitBounds(frameBounds(state.course.frame), { animate: false });
+      } else if (state.course.controls.length) {
+        fitCourse();
       }
-      renderFrame();
-      if (frameValid(state.course.frame)) fitFrame();
       if (state.course.scaleLocked) {
         lockScale(true);
         toast(t(`已匯入路線（比例已鎖定 ${scaleLabel(currentScaleLock())}）`, `Imported (scale locked at ${scaleLabel(currentScaleLock())})`));
@@ -1356,53 +1046,43 @@ function loadSample(kind) {
   if (kind === "urban") {
     state.layer = "hm20c";
     state.course = {
-      version: 1,
-      system: "Scout System",
+      ...emptyCourse(),
       name: "尖沙咀海濱城市定向（示範）",
       type: "urban",
-      created: new Date().toISOString(),
       meet: "尖沙咀鐘樓",
       cutoff: "活動開始後 90 分鐘",
       sos: "領袖電話／999",
       controls: [
-        { id: uid(), kind: "start", lat: 22.2939, lng: 114.1697, code: "S", name: "鐘樓", clue: "古蹟鐘樓南面空地", note: "" },
-        { id: uid(), kind: "control", lat: 22.2948, lng: 114.172, code: "31", name: "星光大道", clue: "海濱欄杆／牌匾", note: "" },
-        { id: uid(), kind: "control", lat: 22.2972, lng: 114.1691, code: "32", name: "香港文化中心", clue: "廣場旗杆附近", note: "" },
-        { id: uid(), kind: "control", lat: 22.2956, lng: 114.1665, code: "33", name: "天星碼頭", clue: "碼頭入口告示", note: "" },
-        { id: uid(), kind: "finish", lat: 22.2939, lng: 114.1697, code: "F", name: "返回鐘樓", clue: "起點集合", note: "" },
+        { id: uid(), kind: "start", lat: 22.2939, lng: 114.1697, code: "S", name: "鐘樓", clue: "古蹟鐘樓南面空地", note: "", score: 0 },
+        { id: uid(), kind: "control", lat: 22.2948, lng: 114.172, code: "31", name: "星光大道", clue: "海濱欄杆／牌匾", note: "", score: 0 },
+        { id: uid(), kind: "control", lat: 22.2972, lng: 114.1691, code: "32", name: "香港文化中心", clue: "廣場旗杆附近", note: "", score: 0 },
+        { id: uid(), kind: "control", lat: 22.2956, lng: 114.1665, code: "33", name: "天星碼頭", clue: "碼頭入口告示", note: "", score: 0 },
+        { id: uid(), kind: "finish", lat: 22.2939, lng: 114.1697, code: "F", name: "返回鐘樓", clue: "起點集合", note: "", score: 0 },
       ],
-      frame: { south: 22.2924, west: 114.1652, north: 22.2986, east: 114.1742 },
     };
-    map.setView([22.2952, 114.1695], 16);
   } else {
     state.layer = "countryside";
     state.course = {
-      version: 1,
-      system: "Scout System",
+      ...emptyCourse(),
       name: "西貢北潭涌郊遊定向（示範）",
       type: "countryside",
-      created: new Date().toISOString(),
       controls: [
-        { id: uid(), kind: "start", lat: 22.3968, lng: 114.3212, code: "S", name: "北潭涌", clue: "郊野公園遊客中心附近", note: "" },
-        { id: uid(), kind: "control", lat: 22.4005, lng: 114.3238, code: "31", name: "麥理浩徑起點", clue: "徑道石碑／標距柱", note: "" },
-        { id: uid(), kind: "control", lat: 22.3982, lng: 114.3285, code: "32", name: "郊遊徑分岔", clue: "小路交匯", note: "" },
-        { id: uid(), kind: "finish", lat: 22.3968, lng: 114.3212, code: "F", name: "返回遊客中心", clue: "集合點", note: "" },
+        { id: uid(), kind: "start", lat: 22.3968, lng: 114.3212, code: "S", name: "北潭涌", clue: "郊野公園遊客中心附近", note: "", score: 0 },
+        { id: uid(), kind: "control", lat: 22.4005, lng: 114.3238, code: "31", name: "麥理浩徑起點", clue: "徑道石碑／標距柱", note: "", score: 0 },
+        { id: uid(), kind: "control", lat: 22.3982, lng: 114.3285, code: "32", name: "郊遊徑分岔", clue: "小路交匯", note: "", score: 0 },
+        { id: uid(), kind: "finish", lat: 22.3968, lng: 114.3212, code: "F", name: "返回遊客中心", clue: "集合點", note: "", score: 0 },
       ],
-      frame: { south: 22.3935, west: 114.3165, north: 22.4035, east: 114.332 },
     };
-      map.setView([22.398, 114.324], 15);
   }
-  state.course.scaleLock = state.course.scaleLock || 20000;
-  state.course.scaleLocked = false;
   syncScaleSelect();
   syncScaleLockButton();
   applyBasemap();
+  applyPaper();
   renderCourse();
-  renderFrame();
   renderSidebar();
   persist();
-  if (frameValid(state.course.frame)) fitFrame();
-  }
+  fitCourse();
+}
 
 /* ---------- boot ---------- */
 function bind() {
@@ -1419,35 +1099,52 @@ function bind() {
     });
   });
   document.getElementById("hm20c-grid").addEventListener("click", (e) => {
-    const s = e.target.closest(".sheet");
+    const s = e.target.closest(".sheet-btn");
     if (s) flySheet("hm20c", s.dataset.id);
   });
   document.getElementById("cm-grid").addEventListener("click", (e) => {
-    const s = e.target.closest(".sheet");
+    const s = e.target.closest(".sheet-btn");
     if (s) flySheet("cm", s.dataset.id);
   });
   document.getElementById("course-name").addEventListener("input", (e) => {
     rememberText();
     state.course.name = e.target.value;
+    renderSheetInfo();
     persist();
   });
-  document.getElementById("course-type").addEventListener("change", (e) => { remember(); state.course.type = e.target.value; persist(); });
-  document.getElementById("play-mode").addEventListener("change", (e) => { remember(); state.course.playMode = e.target.value; renderSidebar(); renderCourse(); persist(); });
+  document.getElementById("course-type").addEventListener("change", (e) => {
+    remember();
+    state.course.type = e.target.value;
+    renderSheetInfo();
+    persist();
+  });
+  document.getElementById("play-mode").addEventListener("change", (e) => {
+    remember();
+    state.course.playMode = e.target.value;
+    renderSidebar();
+    renderCourse();
+    persist();
+  });
   document.getElementById("paper-size").addEventListener("change", (e) => {
     remember();
     state.course.paperSize = e.target.value;
-    /* 方式 1：LOCK 住＋自動框 → 框隨紙張調大小；方式 2：提示放得曬比例 */
-    if (state.course.scaleLocked && state.course.autoFrame) autoFrameFromScalePaper(true, true);
-    else updateFrameInfo();
+    applyPaper();
+    renderSheetInfo();
     persist();
+    toast(t(`紙張已改為 ${state.course.paperSize}，白紙＝列印頁`, `Paper set to ${state.course.paperSize}`));
   });
-  document.getElementById("btn-lock-frame").addEventListener("click", () => {
-    if (!frameValid(state.course.frame)) { toast(t("請先在地圖拖出設計範圍", "Draw a frame first")); setTool("frame"); return; }
-    remember();
-    state.course.frameLocked = !state.course.frameLocked;
-    document.getElementById("btn-lock-frame").textContent = state.course.frameLocked ? "已鎖定範圍（按此解鎖）" : "鎖定範圍，開始設定內容";
-    renderSidebar(); persist();
-    toast(state.course.frameLocked ? t("範圍已鎖定，現在可設定 CP 內容", "Frame locked") : t("範圍已解鎖", "Frame unlocked"));
+  document.getElementById("opt-lines").addEventListener("change", (e) => {
+    state.linesOn = e.target.checked;
+    renderCourse();
+  });
+  document.getElementById("opt-grid").addEventListener("change", (e) => {
+    state.gridOn = e.target.checked;
+    document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
+    renderGrid();
+  });
+  document.getElementById("opt-leader").addEventListener("change", (e) => {
+    state.leaderOn = e.target.checked;
+    document.body.classList.toggle("leader", state.leaderOn);
   });
   document.getElementById("ctrl-list").addEventListener("click", (e) => {
     const del = e.target.closest("[data-del]");
@@ -1476,46 +1173,20 @@ function bind() {
   document.getElementById("btn-grid").addEventListener("click", () => {
     state.gridOn = !state.gridOn;
     document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
+    const cb = document.getElementById("opt-grid");
+    if (cb) cb.checked = state.gridOn;
     renderGrid();
   });
-  document.getElementById("btn-fit-frame").addEventListener("click", fitFrame);
-  document.getElementById("btn-frame-from-scale").addEventListener("click", () => {
-    autoFrameFromScalePaper(true);
-    map.fitBounds(frameBounds(state.course.frame), { padding: [28, 28], animate: true });
-    toast(
-      t(`已按 ${scaleLabel(currentScaleLock())}＋${state.course.paperSize || "A4"} 建框（✥ 拖移、◢ 拉角縮細）`, `Frame sized to ${scaleLabel(currentScaleLock())} + ${state.course.paperSize || "A4"}`),
-    );
-  });
-  /* frame-info 入面嘅「改用…」一鍵套用 */
-  document.getElementById("frame-info").addEventListener("click", (e) => {
-    const s = e.target.closest("[data-apply-scale]");
-    if (s) {
-      const sel = document.getElementById("scale-select");
-      sel.value = s.dataset.applyScale;
-      sel.dispatchEvent(new Event("change"));
-      return;
-    }
-    const p = e.target.closest("[data-apply-paper]");
-    if (p) {
-      const sel = document.getElementById("paper-size");
-      sel.value = p.dataset.applyPaper;
-      if (p.dataset.applyScale) {
-        const ss = document.getElementById("scale-select");
-        ss.value = p.dataset.applyScale;
-        ss.dispatchEvent(new Event("change"));
-      }
-      sel.dispatchEvent(new Event("change"));
-    }
-  });
+  document.getElementById("btn-fit-course").addEventListener("click", fitCourse);
+  document.getElementById("offpaper-chip").addEventListener("click", fitCourse);
   document.getElementById("scale-select").addEventListener("change", (e) => {
     const s = Number(e.target.value);
     if (!SCALE_PRESETS.includes(s)) return;
     remember();
     state.course.scaleLock = s;
     map.setZoom(zoomForScale(map.getCenter().lat, s), { animate: false });
-    /* 方式 1：LOCK 住＋自動框 → 框隨比例調大小 */
-    if (state.course.scaleLocked && state.course.autoFrame) autoFrameFromScalePaper(true, true);
-    else updateFrameInfo();
+    updatePaperInfo();
+    renderSheetInfo();
     toast(
       state.course.scaleLocked
         ? t(`已鎖定 ${scaleLabel(s)}（縮放停用）`, `Locked at ${scaleLabel(s)}`)
@@ -1528,12 +1199,8 @@ function bind() {
       unlockScale();
       toast(t("比例已解鎖，可自由縮放", "Scale unlocked"));
     } else {
-      const created = lockScale();
-      toast(
-        created
-          ? t(`已 LOCK 死 ${scaleLabel(currentScaleLock())}，並建出圖面框（✥ 拖移、◢ 拉角）`, `Locked at ${scaleLabel(currentScaleLock())}, frame created`)
-          : t(`已 LOCK 死 ${scaleLabel(currentScaleLock())}：縮放停用，比例不會再飄`, `Scale locked at ${scaleLabel(currentScaleLock())}`),
-      );
+      lockScale();
+      toast(t(`已 LOCK 死 ${scaleLabel(currentScaleLock())}：白紙上就是這個比例印出`, `Scale locked at ${scaleLabel(currentScaleLock())}`));
     }
   });
   document.getElementById("btn-locate").addEventListener("click", () => {
@@ -1541,7 +1208,8 @@ function bind() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
-        map.setView([latitude, longitude], 16);
+        if (state.course.scaleLocked) map.setView([latitude, longitude], map.getZoom());
+        else map.setView([latitude, longitude], 16);
         L.circleMarker([latitude, longitude], {
           radius: 7,
           color: "#1d4ed8",
@@ -1552,10 +1220,8 @@ function bind() {
       () => toast(t("未能取得位置", "Location unavailable"))
     );
   });
-  document.getElementById("btn-print").addEventListener("click", () => {
-    persist();
-    window.location.href = "print.html";
-  });
+  document.getElementById("btn-print").addEventListener("click", doPrint);
+  document.getElementById("btn-print-side").addEventListener("click", doPrint);
   document.getElementById("btn-export").addEventListener("click", exportCourse);
   document.getElementById("btn-gpx").addEventListener("click", exportGpx);
   ["course-meet", "course-cutoff", "course-sos"].forEach((id) => {
@@ -1563,6 +1229,7 @@ function bind() {
       rememberText();
       const key = id.replace("course-", "");
       state.course[key] = e.target.value;
+      renderSheetInfo();
       persist();
     });
   });
@@ -1579,15 +1246,10 @@ function bind() {
   document.getElementById("btn-undo-side").addEventListener("click", undo);
   document.getElementById("btn-redo").addEventListener("click", redo);
   document.getElementById("btn-clear-cps").addEventListener("click", () => runClearAction("cps"));
-  document.getElementById("btn-step-back").addEventListener("click", stepBack);
   document.getElementById("btn-wipe").addEventListener("click", () => runClearAction("storage"));
   document.getElementById("restore-keep").addEventListener("click", hideRestore);
   document.getElementById("restore-undo").addEventListener("click", undo);
   document.getElementById("restore-wipe").addEventListener("click", () => runClearAction("storage"));
-  document.querySelector(".workflow").addEventListener("click", (e) => {
-    const step = e.target.closest("[data-step]");
-    if (step) goToStep(Number(step.dataset.step));
-  });
   const clearMenu = document.getElementById("clear-menu");
   const clearBtn = document.getElementById("btn-clear-menu");
   const closeClearMenu = () => {
@@ -1651,7 +1313,8 @@ function bind() {
   sug.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
-    map.setView([Number(b.dataset.lat), Number(b.dataset.lng)], 16);
+    if (state.course.scaleLocked) map.setView([Number(b.dataset.lat), Number(b.dataset.lng)], map.getZoom());
+    else map.setView([Number(b.dataset.lat), Number(b.dataset.lng)], 16);
     sug.classList.remove("open");
   });
   document.addEventListener("click", (e) => {
@@ -1672,27 +1335,36 @@ function bind() {
       redo();
       return;
     }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+      e.preventDefault();
+      doPrint();
+      return;
+    }
     if (e.key === "Escape") {
       closeClearMenu();
       document.getElementById("confirm").classList.remove("open");
       document.getElementById("about").classList.remove("open");
     }
     if (e.target.matches("input, textarea")) return;
-    const mapKey = { 1: "hm20c", 2: "countryside", 3: "imagery", s: "start", c: "control", f: "finish", m: "measure", p: "pan", g: "grid", Escape: "pan" };
+    const mapKey = { 1: "hm20c", 2: "countryside", 3: "imagery", s: "start", c: "control", f: "finish", m: "measure", p: "pan", Escape: "pan" };
     if (e.key === "g" && !e.metaKey) {
       document.getElementById("btn-grid").click();
       return;
     }
     if (mapKey[e.key] && ["hm20c", "countryside", "imagery"].includes(mapKey[e.key])) setLayer(mapKey[e.key]);
-    else if (mapKey[e.key]) setTool(mapKey[e.key] === "grid" ? state.tool : mapKey[e.key]);
+    else if (mapKey[e.key]) setTool(mapKey[e.key]);
   });
+
+  window.addEventListener("beforeprint", () => map.invalidateSize());
+  window.addEventListener("afterprint", () => map.invalidateSize());
 }
 
 function gotoGrid() {
   const parsed = parseGridInput(document.getElementById("grid-input").value);
   if (!parsed) return toast(t("無法辨識方格坐標", "Cannot parse grid"));
   const ll = fromHk80(parsed.e, parsed.n);
-  map.setView([ll.lat, ll.lng], 16);
+  if (state.course.scaleLocked) map.setView([ll.lat, ll.lng], map.getZoom());
+  else map.setView([ll.lat, ll.lng], 16);
   L.circleMarker([ll.lat, ll.lng], { radius: 8, color: "#d7b056" }).addTo(map);
 }
 
@@ -1711,28 +1383,26 @@ function boot() {
   const saved = savedAll.current;
   if (savedAll.layer) state.layer = savedAll.layer;
   if (saved && Array.isArray(saved.controls)) state.course = { ...emptyCourse(), ...saved };
-  const restored = hasMeaningfulCourse(state.course);
+  const restored = hasMeaningfulCourse(state.course) || frameValid(state.course.frame);
   renderSheets();
   bind();
   applyBasemap();
+  applyPaper();
   renderCourse();
-  renderFrame();
+  renderMeasure();
   renderSidebar();
   syncScaleSelect();
-  /* 還原上次視圖（有框對框，無框對第一個點） */
+  /* 還原上次視圖：舊版「圈選範圍」對齊一次；否則對齊路線第一點 */
   if (frameValid(state.course.frame)) {
-    map.fitBounds(frameBounds(state.course.frame), { padding: [24, 24], animate: false });
+    map.fitBounds(frameBounds(state.course.frame), { animate: false });
   } else if (state.course.controls[0]) {
     map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
   }
   if (state.course.scaleLocked) {
-    const created = lockScale(true);
-    toast(
-      created
-        ? t(`比例已鎖定 ${scaleLabel(currentScaleLock())}，並建出圖面框`, `Scale locked at ${scaleLabel(currentScaleLock())}, frame created`)
-        : t(`比例已鎖定 ${scaleLabel(currentScaleLock())}`, `Scale locked at ${scaleLabel(currentScaleLock())}`),
-    );
+    lockScale(true);
+    toast(t(`比例已鎖定 ${scaleLabel(currentScaleLock())}`, `Scale locked at ${scaleLabel(currentScaleLock())}`));
   }
+  syncScaleLockButton();
   updateScaleChip();
   updateHistoryButtons();
   updateReadout(L.latLng(HK_CENTER[0], HK_CENTER[1]));

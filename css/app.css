@@ -54,7 +54,8 @@ button, input, select, textarea { font-family: inherit; }
   background: linear-gradient(180deg, #1a4034 0%, #14362c 100%);
   color: var(--paper);
   border-bottom: 2px solid var(--gold);
-  z-index: 20;
+  position: relative;
+  z-index: 30;
 }
 
 .brand {
@@ -264,14 +265,110 @@ button, input, select, textarea { font-family: inherit; }
   border-right: 1px solid var(--line);
   overflow: auto;
   padding: 14px 14px 28px;
+  position: relative;
+  z-index: 20; /* 高於地圖：地圖唔可以蓋住左欄 */
 }
 
+/* ============ 設計＝列印：中央白紙就是列印頁 ============ */
 .mapwrap {
   grid-area: map;
   position: relative;
+  background:
+    radial-gradient(1200px 600px at 50% 0%, rgba(215,176,86,.06), transparent 60%),
+    #1c2a24;
+  /* isolate：Leaflet 內部 z-index（200–1000）全部困在地圖裡面，
+     唔會再蓋住側欄、頂欄、同意視窗 */
+  isolation: isolate;
+  z-index: 1;
+  overflow: hidden;
+}
+.deskscroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 26px 26px 80px;
+}
+.desk {
+  width: max-content;
+  min-width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* 白紙：實際 mm 尺寸，同 @page 一致，所見即所得 */
+.sheet {
+  background: #fff;
+  box-shadow: 0 16px 50px rgba(0,0,0,.4);
+  padding: 8mm;
+  width: 297mm;
+}
+body[data-paper="A3"] .sheet { width: 420mm; }
+body[data-paper="A5"] .sheet { width: 210mm; }
+
+.sheet-head {
+  height: 13mm;
+  overflow: hidden;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.sheet-head h1 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.15;
+  font-family: var(--display);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.sheet-head p {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #444;
+}
+.sheet-mark { display: flex; gap: 6px; align-items: center; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.sheet-mark img { width: 26px; height: 26px; border-radius: 7px; }
+.sheet-mark small { font-weight: 500; color: #666; }
+
+/* 地圖 = 紙面圖框（mm 實數，與列印 100% 相同） */
+#map {
+  width: 281mm;
+  height: 168mm;
+  margin-top: 2mm;
+  border: 1px solid #222;
   background: #cfd6c8;
 }
-#map { position: absolute; inset: 0; }
+body[data-paper="A3"] #map { width: 404mm; height: 255mm; }
+body[data-paper="A5"] #map { width: 194mm; height: 106mm; }
+
+.sheet-foot {
+  height: 6mm;
+  overflow: hidden;
+  margin-top: 2mm;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 9.5px;
+  color: #333;
+}
+
+.page-divider {
+  margin: 8px 0 10px;
+  border-top: 1.5px dashed #c0564f;
+  color: #c0564f;
+  font-size: 10px;
+  text-align: center;
+  padding-top: 4px;
+}
+
+.desc h2 { font-size: 13px; margin: 0 0 6px; }
+.desc table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.desc th, .desc td { border: 1px solid #bbb; padding: 5px 7px; text-align: left; }
+.desc th { background: #f3eee3; }
+body:not(.leader) .leader-only { display: none; }
 
 .panel {
   background: var(--paper-2);
@@ -280,25 +377,8 @@ button, input, select, textarea { font-family: inherit; }
   padding: 12px;
   margin-bottom: 12px;
 }
-.workflow { display:flex; gap:4px; margin:-2px 0 10px; flex-wrap:wrap; }
-.workflow .step {
-  border: 0;
-  cursor: pointer;
-  font-size:10px;
-  padding:4px 7px;
-  border-radius:999px;
-  background:#eee9df;
-  color:var(--muted);
-  font-family: inherit;
-}
-.workflow .step.done { color:var(--forest-2); }
-.workflow .step.active { background:var(--gold-2); color:var(--ink); font-weight:700; }
-.workflow .step:hover { filter: brightness(.97); }
-.workflow-nav { margin: -2px 0 10px; }
 .score-field { display:none !important; }
 body.score-mode .score-field { display:flex !important; }
-body.frame-locked .workflow .step:nth-child(2) { background:#dcecdf; }
-body.frame-locked .workflow .step:nth-child(3), body.frame-locked .workflow .step:nth-child(4) { background:var(--gold-2); color:var(--ink); }
 .panel h2 {
   margin: 0 0 10px;
   font-size: 12px;
@@ -333,8 +413,8 @@ label.field textarea { min-height: 60px; resize: vertical; }
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
+  margin-bottom: 8px;
 }
-.tool[data-tool="frame"] { grid-column: span 2; }
 .tool {
   background: #efe8d8;
   border-radius: 10px;
@@ -346,13 +426,25 @@ label.field textarea { min-height: 60px; resize: vertical; }
 .tool:hover { background: #e6dcc6; }
 .tool.active { background: var(--forest); color: var(--gold-2); }
 
+.opts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink);
+  background: #efe8d8;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.opts label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
 .sheets {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 5px;
 }
 .sheets.five { grid-template-columns: 1fr; }
-.sheet {
+.sheet-btn {
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 8px;
@@ -362,8 +454,8 @@ label.field textarea { min-height: 60px; resize: vertical; }
   text-align: center;
   line-height: 1.25;
 }
-.sheet b { display: block; font-size: 12px; color: var(--forest); }
-.sheet:hover, .sheet.active { border-color: var(--gold); background: #fff8e6; }
+.sheet-btn b { display: block; font-size: 12px; color: var(--forest); }
+.sheet-btn:hover, .sheet-btn.active { border-color: var(--gold); background: #fff8e6; }
 
 .stats {
   display: grid;
@@ -434,6 +526,7 @@ label.field textarea { min-height: 60px; resize: vertical; }
   display: flex;
   flex-direction: column;
   gap: 6px;
+  align-items: flex-end;
 }
 .chip {
   background: rgba(255,253,247,.94);
@@ -444,33 +537,12 @@ label.field textarea { min-height: 60px; resize: vertical; }
   box-shadow: 0 6px 18px rgba(0,0,0,.12);
 }
 .chip.on { background: var(--forest); color: var(--gold-2); }
-.frame-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-  background: rgba(215,176,86,.95);
-  color: #1a2a22;
-  font-size: 14px;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(0,0,0,.35);
-  border: 1.5px solid #8a6d2f;
-  line-height: 1;
+.chip.warn-chip {
+  background: #b42318;
+  color: #fff;
 }
-.frame-handle.frame-move { cursor: move; }
-.frame-handle.frame-resize { cursor: nwse-resize; }
-.frame-size-tip {
-  background: rgba(15,28,23,.9);
-  color: #f0d48a;
-  font: 700 11px/20px ui-monospace, monospace;
-  text-align: center;
-  border-radius: 6px;
-  padding: 0 8px;
-  white-space: nowrap;
-}
-.scale-set { display: flex; flex-direction: column; gap: 6px; }
+.chip.warn-chip[hidden] { display: none !important; }
+.scale-set { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .scale-set select {
   appearance: none;
   -webkit-appearance: none;
@@ -571,12 +643,13 @@ label.field textarea { min-height: 60px; resize: vertical; }
 }
 .compare th { background: #efe8d8; }
 
+/* 同意視窗／對話框：一定在最上層，唔會被地圖蓋住 */
 .modal {
   position: fixed; inset: 0;
   background: rgba(10,16,13,.55);
   display: none;
   place-items: center;
-  z-index: 50;
+  z-index: 3000;
   padding: 20px;
 }
 .modal.open { display: grid; }
@@ -585,6 +658,8 @@ label.field textarea { min-height: 60px; resize: vertical; }
   border-radius: 18px;
   max-width: 560px;
   width: 100%;
+  max-height: 85vh;
+  overflow: auto;
   padding: 22px;
   box-shadow: var(--shadow);
 }
@@ -646,7 +721,7 @@ label.field textarea { min-height: 60px; resize: vertical; }
   border-radius: 999px;
   font-size: 13px;
   display: none;
-  z-index: 60;
+  z-index: 3200;
 }
 .toast.show { display: block; }
 
@@ -675,17 +750,46 @@ label.field textarea { min-height: 60px; resize: vertical; }
   .brand small { display: none; }
   .basemaps button { padding: 7px 9px; font-size: 12px; }
   .coord-readout { min-width: 0; max-width: calc(100% - 24px); }
+  .deskscroll { padding: 12px 12px 60px; }
 }
+
+/* ============ 列印：印出嘅就係畫面白紙（同一個 DOM，零轉換） ============ */
+@page { size: A4 landscape; margin: 8mm; }
+@page pageA3 { size: A3 landscape; margin: 8mm; }
+@page pageA5 { size: A5 landscape; margin: 8mm; }
+body[data-paper="A3"] { page: pageA3; }
+body[data-paper="A5"] { page: pageA5; }
 
 @media print {
   body { overflow: visible; background: #fff; }
-  .topbar, .sidebar, .scale-lock, .credit, .modal, .toast { display: none !important; }
+  .topbar,
+  .sidebar,
+  .scale-lock,
+  .coord-readout,
+  .credit,
+  .restore-bar,
+  .modal,
+  .toast,
+  .page-divider,
+  .leaflet-control-container { display: none !important; }
   .app { display: block; height: auto; }
-  .mapwrap { position: relative; height: 68vh; }
-  #map { position: relative; height: 68vh; }
-  .print-sheet { display: block !important; padding: 16px; }
+  .mapwrap {
+    position: static;
+    background: #fff;
+    overflow: visible;
+  }
+  .deskscroll {
+    position: static;
+    overflow: visible;
+    padding: 0;
+  }
+  .desk { width: auto; min-width: 0; display: block; }
+  .sheet, body[data-paper="A3"] .sheet, body[data-paper="A5"] .sheet {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  /* #map 保持 mm 實數尺寸：設計時見到幾大，就印幾大 */
+  .desc { break-before: page; page-break-before: always; }
 }
-
-.print-sheet { display: none; }
-.print-sheet table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.print-sheet th, .print-sheet td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
