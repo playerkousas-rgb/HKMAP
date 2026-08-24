@@ -5,7 +5,7 @@ export const IB20000 = {
   title: "HM20C 電子版＝iB20000 數碼地形圖",
   price: "免費 HK$0（2026 年 2 月價目表）",
   formats: ["GeoTIFF（較易列印／QGIS）", "GML（開放向量）", "FGDB（ArcGIS）", "DWG / DGN（CAD）"],
-  sheets: "全港約 18 幅，比例 1:20 000，香港 1980 方格網",
+  sheets: "全港約 18 幅，比例 1:20 000（與 HM20C 同一套測繪；紙本印 UTM 方格 KK／QK）",
   steps: [
     "開啟香港地圖服務 2.0，右上角「登入／登記」→ 個人用戶，完成電郵驗證。",
     "進入「空間數據與地形圖」，搜尋 iB20000。",
