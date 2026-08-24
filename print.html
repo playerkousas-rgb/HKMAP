@@ -3,71 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>列印定向地圖 · Scout System</title>
+  <title>列印已合併至設計頁 · Scout System</title>
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Outfit:wght@700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/app.css" />
-  <link rel="stylesheet" href="css/print-map.css" />
+  <meta http-equiv="refresh" content="0; url=index.html" />
+  <script>location.replace("index.html");</script>
+  <style>
+    body { font-family: "Noto Sans TC", sans-serif; background: #16362c; color: #f3eee3; display: grid; place-items: center; height: 100vh; margin: 0; }
+    a { color: #f0d48a; }
+  </style>
 </head>
-<body class="print-app">
-  <header class="print-bar no-print">
-    <div>
-      <strong>Scout System</strong>
-      <span>列印給參加者的紙圖（地圖上已有 CP 圓圈）</span>
-    </div>
-    <div class="print-actions">
-      <label>比例
-        <select id="scale">
-          <option value="5000">1 : 5 000（城市細範圍）</option>
-          <option value="10000" selected>1 : 10 000</option>
-          <option value="15000">1 : 15 000</option>
-          <option value="20000">1 : 20 000（HM20C）</option>
-        </select>
-      </label>
-      <label><input type="checkbox" id="opt-grid" checked /> 方格網</label>
-      <label><input type="checkbox" id="opt-lines" checked /> 路線連線</label>
-      <label><input type="checkbox" id="opt-coords" /> 領袖版（印坐標）</label>
-      <button class="solid" id="btn-print" type="button">列印</button>
-      <a class="ghost" href="mock.html">教學</a>
-      <a class="ghost" href="index.html">← 返回設計</a>
-      <button class="ghost" id="btn-wipe-print" type="button">清除暫存</button>
-    </div>
-  </header>
-  <main class="sheet">
-    <header class="sheet-head">
-      <div>
-        <h1 id="title">定向地圖</h1>
-        <p id="meta"></p>
-      </div>
-      <div class="sheet-mark">
-        <img src="assets/mark.svg" alt="" />
-        <div>SCOUT SYSTEM<br /><small>策劃用紙圖</small></div>
-      </div>
-    </header>
-    <div id="print-map"></div>
-    <footer class="sheet-foot">
-      <div id="legend">△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印</div>
-      <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
-    </footer>
-    <section class="desc">
-      <h2>檢查點說明</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>編號</th>
-            <th>說明</th>
-            <th class="leader-only">HK1980</th>
-            <th class="leader-only">100m 方格</th>
-            <th>段距</th>
-          </tr>
-        </thead>
-        <tbody id="desc-body"></tbody>
-      </table>
-    </section>
-  </main>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
-  <script type="module" src="js/print.js"></script>
+<body>
+  <p>列印模式已同設計頁合併（設計＝列印）。<a href="index.html">按此前往設計頁</a>，直接按「🖨 列印地圖」即可。</p>
 </body>
 </html>

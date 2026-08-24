@@ -211,11 +211,13 @@ export function zoomForScale(lat, scale, dpi = 96) {
   return Math.log2(num / targetMpp);
 }
 
-/** 列印頁圖面大小（mm）：@page landscape、8 mm 頁邊距；A5 圖高受頁面高度限制。 */
+/** 設計＝列印：紙面圖框大小（mm）。@page landscape、8 mm 頁邊距，
+ *  扣除圖名列（13 mm）與圖底列（8 mm）後的實際地圖面積。
+ *  螢幕上的設計畫布與列印輸出都用同一組數字，所見即所得。 */
 export const PRINT_AREA_MM = {
-  A3: { w: 420 - 16, h: 168 },
-  A4: { w: 297 - 16, h: 168 },
-  A5: { w: 210 - 16, h: 148 - 16 },
+  A3: { w: 420 - 16, h: 297 - 16 - 26 },
+  A4: { w: 297 - 16, h: 210 - 16 - 26 },
+  A5: { w: 210 - 16, h: 148 - 16 - 26 },
 };
 
 /** 指定比例＋紙張下，列印圖面可容納的最大實際範圍（米）。 */

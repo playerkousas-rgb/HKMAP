@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Scout System · 定向地圖設計</title>
-  <meta name="description" content="策劃者在官方香港地圖上放置檢查點，列印紙圖給參加者。© Scout System" />
+  <title>Scout System · 定向地圖設計＝列印</title>
+  <meta name="description" content="策劃者在官方香港地圖上放置檢查點，白紙畫布＝列印頁，所見即所得。© Scout System" />
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,14 +12,14 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/app.css" />
 </head>
-<body class="print-design-mode">
+<body data-paper="A4">
   <div class="app">
     <header class="topbar">
       <div class="brand">
         <img src="assets/mark.svg" alt="" />
         <div>
           <h1>SCOUT SYSTEM</h1>
-          <small>策劃用紙圖 · 在地圖上放 CP，然後列印</small>
+          <small>設計＝列印 · 白紙上放 CP，直接印出</small>
         </div>
       </div>
       <div class="basemaps" role="tablist" aria-label="底圖">
@@ -41,7 +41,6 @@
             <div id="clear-menu" class="menu" hidden>
               <button type="button" data-clear="undo">↩ 返回上一動</button>
               <button type="button" data-clear="cps">清除檢查點</button>
-              <button type="button" data-clear="frame">清除範圍</button>
               <button type="button" data-clear="measure">清除量距</button>
               <button type="button" data-clear="course">全新路線</button>
               <button type="button" class="danger" data-clear="storage">清除本機暫存（解除卡住）</button>
@@ -52,23 +51,17 @@
         <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">下載底圖</a>
         <button class="ghost" id="btn-lang" type="button">EN</button>
         <button class="ghost" id="btn-about" type="button">地圖來源</button>
-        <button class="solid" id="btn-print" type="button">列印地圖</button>
+        <button class="solid" id="btn-print" type="button">🖨 列印地圖</button>
       </div>
     </header>
 
     <aside class="sidebar">
       <section class="panel">
-        <h2>設計路線</h2>
-        <div class="workflow" aria-label="設計步驟">
-          <button type="button" class="step done" data-step="1">1　底圖</button>
-          <button type="button" class="step active" data-step="2">2　圈選</button>
-          <button type="button" class="step" data-step="3">3　比例／紙張</button>
-          <button type="button" class="step" data-step="4">4　內容</button>
-        </div>
-        <div class="row workflow-nav">
-          <button class="ghost paper" id="btn-step-back" type="button">← 上一步</button>
-          <button class="ghost danger" id="btn-wipe" type="button">清除本機暫存</button>
-        </div>
+        <h2>設計＝列印</h2>
+        <p class="notice" style="margin:0 0 10px">
+          畫面中央的<strong>白紙就是列印頁</strong>：紙上見到乜，印出嚟就係乜；紙以外唔會印。
+          流程：① 揀底圖／搜尋地點　② 揀紙張＋比例（可鎖定）　③ 喺紙上放 △ ○ ◎　④ 按「列印地圖」。
+        </p>
         <label class="field">路線名稱
           <input id="course-name" maxlength="80" />
         </label>
@@ -81,19 +74,21 @@
           <label class="field">遊玩方式<select id="play-mode"><option value="linear">越野式（按順序）</option><option value="score">奪分式（自由路線）</option></select></label>
           <label class="field">列印紙張<select id="paper-size"><option>A3</option><option selected>A4</option><option>A5</option></select></label>
         </div>
-        <button class="solid" id="btn-lock-frame" type="button" style="width:100%;margin-bottom:8px">鎖定範圍，開始設定內容</button>
+        <p class="notice" id="paper-info" style="margin:0 0 8px"></p>
         <div class="tools">
           <button class="tool active" data-tool="pan" type="button">平移</button>
-          <button class="tool" data-tool="frame" type="button">圈選範圍</button>
           <button class="tool" data-tool="start" type="button">△ 起點</button>
           <button class="tool" data-tool="control" type="button">○ CP</button>
           <button class="tool" data-tool="finish" type="button">◎ 終點</button>
           <button class="tool" data-tool="measure" type="button">量距</button>
           <button class="tool" data-tool="delete" type="button">刪除</button>
-          <button class="tool" data-tool="clear-frame" type="button">清除範圍</button>
         </div>
-        <p class="notice" id="frame-info" style="margin:8px 0 0">先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。</p>
-        <button class="ghost" id="btn-frame-from-scale" type="button" style="width:100%;margin-top:8px">📐 按比例＋紙張建框（＝圖面大小）</button>
+        <div class="opts">
+          <label><input type="checkbox" id="opt-lines" checked /> 路線連線（紫紅套印）</label>
+          <label><input type="checkbox" id="opt-grid" checked /> HK1980 方格網</label>
+          <label><input type="checkbox" id="opt-leader" /> 領袖版：說明表印 HK1980 坐標</label>
+        </div>
+        <button class="solid" id="btn-print-side" type="button" style="width:100%;margin-top:8px">🖨 列印地圖（＝畫面白紙）</button>
         <div class="row" style="margin-top:8px">
           <button class="ghost paper" id="btn-undo-side" type="button">↩ 返回</button>
           <button class="ghost paper" id="btn-clear-cps" type="button">清除檢查點</button>
@@ -105,7 +100,7 @@
         </div>
         <div class="row" style="margin-top:8px">
           <button class="ghost paper" id="btn-import" type="button">匯入</button>
-          <a class="ghost paper" href="download.html" style="text-decoration:none;text-align:center">電子地圖下載</a>
+          <button class="ghost danger" id="btn-wipe" type="button">清除本機暫存</button>
         </div>
         <input id="file-import" type="file" accept="application/json,.json" hidden />
         <div class="row" style="margin-top:8px">
@@ -142,7 +137,7 @@
           <label class="field">策劃備註（不印給參加者）<textarea id="ed-note"></textarea></label>
           <label class="field score-field">本 CP 分值<input id="ed-score" type="number" min="0" max="999" step="1" value="0" /></label>
         </div>
-        <p class="notice" style="margin:8px 0 0">畫好後按「列印地圖」：紙圖上會有紫紅 CP 圓圈，參加者用紙圖玩，不用手機。</p>
+        <p class="notice" style="margin:8px 0 0">放好後按「列印地圖」：白紙上的紫紅 CP 圓圈原樣印出，參加者用紙圖玩，不用手機。</p>
       </section>
 
       <section class="panel" id="sheet-ib20000">
@@ -198,7 +193,43 @@
     </aside>
 
     <main class="mapwrap">
-      <div id="map" role="application" aria-label="香港地圖"></div>
+      <div class="deskscroll">
+        <div class="desk">
+          <div class="sheet" id="sheet">
+            <header class="sheet-head">
+              <div>
+                <h1 id="sheet-title">定向地圖</h1>
+                <p id="sheet-meta"></p>
+              </div>
+              <div class="sheet-mark">
+                <img src="assets/mark.svg" alt="" />
+                <div>SCOUT SYSTEM<br /><small>設計＝列印</small></div>
+              </div>
+            </header>
+            <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
+            <footer class="sheet-foot">
+              <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印</div>
+              <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
+            </footer>
+            <div class="page-divider">— 以上為第 1 頁（白紙＝列印範圍）· 下方說明表印在第 2 頁 —</div>
+            <section class="desc">
+              <h2>檢查點說明</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>編號</th>
+                    <th>說明</th>
+                    <th class="leader-only">HK1980</th>
+                    <th class="leader-only">100m 方格</th>
+                    <th>段距</th>
+                  </tr>
+                </thead>
+                <tbody id="desc-body"></tbody>
+              </table>
+            </section>
+          </div>
+        </div>
+      </div>
       <div id="restore-bar" class="restore-bar" hidden>
         <span id="restore-msg">已還原瀏覽器暫存的路線。卡著可按「清除暫存」。</span>
         <div class="restore-actions">
@@ -219,8 +250,9 @@
           <button class="chip" id="btn-scale-lock" type="button">🔒 鎖定比例</button>
         </div>
         <button class="chip on" id="btn-grid" type="button">HK1980 方格網</button>
-        <button class="chip" id="btn-fit-frame" type="button">對齊圈選範圍</button>
+        <button class="chip" id="btn-fit-course" type="button">對齊路線</button>
         <button class="chip" id="btn-locate" type="button">我的位置</button>
+        <button class="chip warn-chip" id="offpaper-chip" type="button" hidden></button>
       </div>
       <div class="coord-readout" id="readout"></div>
       <aside class="credit">
@@ -232,10 +264,6 @@
       </aside>
     </main>
   </div>
-
-  <section class="print-sheet">
-    <div id="print-body"></div>
-  </section>
 
   <div id="terms" class="modal" role="dialog" aria-labelledby="terms-title">
     <div class="dialog">
