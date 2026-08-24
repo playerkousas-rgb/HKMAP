@@ -33,6 +33,21 @@
         <div id="suggest" class="suggest"></div>
       </div>
       <div class="top-actions">
+        <div class="hist">
+          <button class="ghost" id="btn-undo" type="button" disabled title="返回上一動（Ctrl+Z）">↩ 返回</button>
+          <button class="ghost" id="btn-redo" type="button" disabled title="重做（Ctrl+Y）">↪</button>
+          <div class="hist-clear">
+            <button class="ghost" id="btn-clear-menu" type="button" aria-haspopup="true" aria-expanded="false">清除</button>
+            <div id="clear-menu" class="menu" hidden>
+              <button type="button" data-clear="undo">↩ 返回上一動</button>
+              <button type="button" data-clear="cps">清除檢查點</button>
+              <button type="button" data-clear="frame">清除範圍</button>
+              <button type="button" data-clear="measure">清除量距</button>
+              <button type="button" data-clear="course">全新路線</button>
+              <button type="button" class="danger" data-clear="storage">清除本機暫存（解除卡住）</button>
+            </div>
+          </div>
+        </div>
         <a class="ghost" href="mock.html" style="text-decoration:none;display:inline-block">教學</a>
         <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">下載底圖</a>
         <button class="ghost" id="btn-lang" type="button">EN</button>
@@ -45,7 +60,14 @@
       <section class="panel">
         <h2>設計路線</h2>
         <div class="workflow" aria-label="設計步驟">
-          <span class="step done">1　底圖</span><span class="step active">2　圈選</span><span class="step">3　比例／紙張</span><span class="step">4　內容</span>
+          <button type="button" class="step done" data-step="1">1　底圖</button>
+          <button type="button" class="step active" data-step="2">2　圈選</button>
+          <button type="button" class="step" data-step="3">3　比例／紙張</button>
+          <button type="button" class="step" data-step="4">4　內容</button>
+        </div>
+        <div class="row workflow-nav">
+          <button class="ghost paper" id="btn-step-back" type="button">← 上一步</button>
+          <button class="ghost danger" id="btn-wipe" type="button">清除本機暫存</button>
         </div>
         <label class="field">路線名稱
           <input id="course-name" maxlength="80" />
@@ -73,19 +95,24 @@
         <p class="notice" id="frame-info" style="margin:8px 0 0">先圈選設計範圍（拖出長方形），範圍外會變暗，列印也按此框出圖。</p>
         <button class="ghost" id="btn-frame-from-scale" type="button" style="width:100%;margin-top:8px">📐 按比例＋紙張建框（＝圖面大小）</button>
         <div class="row" style="margin-top:8px">
-          <button class="ghost" id="btn-new" type="button" style="color:#16362c;background:#efe8d8">新路線</button>
-          <button class="ghost" id="btn-export" type="button" style="color:#16362c;background:#efe8d8">匯出 JSON</button>
-          <button class="ghost" id="btn-gpx" type="button" style="color:#16362c;background:#efe8d8">匯出 GPX</button>
+          <button class="ghost paper" id="btn-undo-side" type="button">↩ 返回</button>
+          <button class="ghost paper" id="btn-clear-cps" type="button">清除檢查點</button>
         </div>
         <div class="row" style="margin-top:8px">
-          <button class="ghost" id="btn-import" type="button" style="color:#16362c;background:#efe8d8">匯入</button>
-          <a class="ghost" href="download.html" style="color:#16362c;background:#efe8d8;text-decoration:none;text-align:center">電子地圖下載</a>
+          <button class="ghost paper" id="btn-new" type="button">新路線</button>
+          <button class="ghost paper" id="btn-export" type="button">匯出 JSON</button>
+          <button class="ghost paper" id="btn-gpx" type="button">匯出 GPX</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost paper" id="btn-import" type="button">匯入</button>
+          <a class="ghost paper" href="download.html" style="text-decoration:none;text-align:center">電子地圖下載</a>
         </div>
         <input id="file-import" type="file" accept="application/json,.json" hidden />
         <div class="row" style="margin-top:8px">
-          <button class="ghost" id="btn-sample-u" type="button" style="color:#16362c;background:#efe8d8">示範：城市</button>
-          <button class="ghost" id="btn-sample-c" type="button" style="color:#16362c;background:#efe8d8">示範：郊遊</button>
+          <button class="ghost paper" id="btn-sample-u" type="button">示範：城市</button>
+          <button class="ghost paper" id="btn-sample-c" type="button">示範：郊遊</button>
         </div>
+        <p class="notice" style="margin:8px 0 0">路線會自動暫存在這部瀏覽器。卡住、想重來：按「↩ 返回」或「清除本機暫存」。網址加 <code>?reset=1</code> 也可強制清空。</p>
         <div class="stats">
           <div class="stat"><span>路線長度</span><strong id="stat-dist">0 m</strong></div>
           <div class="stat"><span>檢查點</span><strong id="stat-n">0</strong></div>
@@ -172,6 +199,14 @@
 
     <main class="mapwrap">
       <div id="map" role="application" aria-label="香港地圖"></div>
+      <div id="restore-bar" class="restore-bar" hidden>
+        <span id="restore-msg">已還原瀏覽器暫存的路線。卡著可按「清除暫存」。</span>
+        <div class="restore-actions">
+          <button class="chip" id="restore-keep" type="button">繼續編輯</button>
+          <button class="chip" id="restore-undo" type="button">↩ 返回</button>
+          <button class="chip danger-chip" id="restore-wipe" type="button">清除暫存</button>
+        </div>
+      </div>
       <div class="scale-lock">
         <button class="chip" id="scale-chip" type="button">比例</button>
         <div class="scale-set">
@@ -241,6 +276,17 @@
       <p><strong>坐標</strong> — WGS84 與香港 1980 方格網（EPSG:2326），以及 1 km / 100 m / 10 m 方格，對照 HM20C 圖邊數字。</p>
       <div class="actions">
         <button class="solid" id="about-close" type="button">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirm" class="modal" role="dialog" aria-labelledby="confirm-title" aria-modal="true">
+    <div class="dialog">
+      <h3 id="confirm-title">確定？</h3>
+      <p id="confirm-body"></p>
+      <div class="actions">
+        <button class="ghost paper" id="confirm-no" type="button">取消</button>
+        <button class="solid" id="confirm-yes" type="button">確定</button>
       </div>
     </div>
   </div>

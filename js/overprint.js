@@ -57,6 +57,9 @@ export function drawOverprint(layer, controls, options = {}) {
       riseOnHover: true,
       keyboard: false,
     }).addTo(layer);
+    if (options.onDragStart) {
+      marker.on("dragstart", () => options.onDragStart(ctrl));
+    }
     if (options.onDrag) {
       marker.on("dragend", () => options.onDrag(ctrl, marker.getLatLng()));
     }

@@ -82,6 +82,332 @@ function t(zh, en) {
   return state.lang === "zh" ? zh : en;
 }
 
+const hist = { past: [], future: [], ignore: false };
+let textBurst = false;
+let textBurstTimer = 0;
+
+function cloneState() {
+  return JSON.parse(
+    JSON.stringify({
+      course: state.course,
+      layer: state.layer,
+      selectedId: state.selectedId,
+      measure: state.measure,
+    })
+  );
+}
+
+function remember() {
+  if (hist.ignore) return;
+  hist.past.push(cloneState());
+  if (hist.past.length > 50) hist.past.shift();
+  hist.future = [];
+  updateHistoryButtons();
+}
+
+function rememberText() {
+  if (!textBurst) {
+    remember();
+    textBurst = true;
+  }
+  clearTimeout(textBurstTimer);
+  textBurstTimer = setTimeout(() => {
+    textBurst = false;
+  }, 800);
+}
+
+function updateHistoryButtons() {
+  const undoBtns = ["btn-undo", "btn-undo-side"].map((id) => document.getElementById(id));
+  const redoBtn = document.getElementById("btn-redo");
+  undoBtns.forEach((b) => {
+    if (b) b.disabled = hist.past.length === 0;
+  });
+  if (redoBtn) redoBtn.disabled = hist.future.length === 0;
+}
+
+function hideRestore() {
+  const bar = document.getElementById("restore-bar");
+  if (bar) bar.hidden = true;
+}
+
+function showRestore(name) {
+  const bar = document.getElementById("restore-bar");
+  const msg = document.getElementById("restore-msg");
+  if (!bar) return;
+  if (msg) {
+    msg.textContent = name
+      ? t(`已還原瀏覽器暫存：「${name}」。卡著可按「清除暫存」。`, `Restored “${name}” from this browser. Use Clear if you are stuck.`)
+      : t("已還原瀏覽器暫存的路線。卡著可按「清除暫存」。", "Restored the course saved in this browser. Use Clear if you are stuck.");
+  }
+  bar.hidden = false;
+}
+
+function hasMeaningfulCourse(course) {
+  if (!course) return false;
+  return Boolean(
+    (course.controls && course.controls.length) ||
+      frameValid(course.frame) ||
+      course.frameLocked ||
+      course.scaleLocked ||
+      course.meet ||
+      course.cutoff ||
+      course.sos ||
+      (course.name && course.name !== "未命名定向路線")
+  );
+}
+
+function applySnapshot(snap) {
+  hist.ignore = true;
+  const prevScaleLocked = state.course.scaleLocked;
+  const copy = JSON.parse(JSON.stringify(snap));
+  state.course = copy.course;
+  state.layer = copy.layer || "hm20c";
+  state.selectedId = copy.selectedId || null;
+  state.measure = copy.measure || [];
+  if (prevScaleLocked && !state.course.scaleLocked) setZoomControls(true);
+  if (!prevScaleLocked && state.course.scaleLocked) setZoomControls(false);
+  applyBasemap();
+  renderCourse();
+  renderFrame();
+  renderMeasure();
+  renderSidebar();
+  syncScaleSelect();
+  syncScaleLockButton();
+  if (state.course.scaleLocked) {
+    map.setZoom(zoomForScale(map.getCenter().lat, currentScaleLock()), { animate: false });
+  }
+  updateScaleChip();
+  persist();
+  updateHistoryButtons();
+  hist.ignore = false;
+}
+
+function undo() {
+  if (!hist.past.length) {
+    toast(t("沒有可返回的步驟", "Nothing to undo"));
+    return;
+  }
+  hist.future.push(cloneState());
+  applySnapshot(hist.past.pop());
+  toast(t("已返回上一動", "Undone"));
+}
+
+function redo() {
+  if (!hist.future.length) {
+    toast(t("沒有可重做的步驟", "Nothing to redo"));
+    return;
+  }
+  hist.past.push(cloneState());
+  applySnapshot(hist.future.pop());
+  toast(t("已重做", "Redone"));
+}
+
+function askConfirm({ title, body, ok, danger }) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("confirm");
+    const yes = document.getElementById("confirm-yes");
+    const no = document.getElementById("confirm-no");
+    document.getElementById("confirm-title").textContent = title;
+    document.getElementById("confirm-body").textContent = body;
+    yes.textContent = ok || t("確定", "OK");
+    yes.classList.toggle("danger-solid", !!danger);
+    modal.classList.add("open");
+    const done = (value) => {
+      modal.classList.remove("open");
+      yes.removeEventListener("click", onYes);
+      no.removeEventListener("click", onNo);
+      modal.removeEventListener("click", onBackdrop);
+      resolve(value);
+    };
+    const onYes = () => done(true);
+    const onNo = () => done(false);
+    const onBackdrop = (e) => {
+      if (e.target === modal) done(false);
+    };
+    yes.addEventListener("click", onYes);
+    no.addEventListener("click", onNo);
+    modal.addEventListener("click", onBackdrop);
+  });
+}
+
+function startFresh({ wipe = false, reload = false } = {}) {
+  const wasLocked = state.course.scaleLocked;
+  hist.ignore = true;
+  hist.past = [];
+  hist.future = [];
+  state.course = emptyCourse();
+  state.selectedId = null;
+  state.measure = [];
+  state.tool = "pan";
+  if (wasLocked) setZoomControls(true);
+  if (wipe) localStorage.removeItem(STORAGE_KEY);
+  else persist();
+  if (reload) {
+    const url = new URL("index.html", location.href);
+    location.href = url.href;
+    return;
+  }
+  document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === "pan"));
+  map.getContainer().style.cursor = "";
+  map.dragging.enable();
+  applyBasemap();
+  renderCourse();
+  renderFrame();
+  renderMeasure();
+  renderSidebar();
+  syncScaleSelect();
+  syncScaleLockButton();
+  updateScaleChip();
+  updateHistoryButtons();
+  map.setView(HK_CENTER, 13);
+  hideRestore();
+  hist.ignore = false;
+}
+
+function clearControlsOnly() {
+  if (!state.course.controls.length) {
+    toast(t("沒有檢查點可清除", "No controls to clear"));
+    return;
+  }
+  remember();
+  state.course.controls = [];
+  state.selectedId = null;
+  renderCourse();
+  renderSidebar();
+  persist();
+  toast(t("已清除檢查點", "Controls cleared"));
+}
+
+function clearMeasure() {
+  if (!state.measure.length) {
+    toast(t("沒有量距可清除", "No measurement to clear"));
+    return;
+  }
+  remember();
+  state.measure = [];
+  renderMeasure();
+  toast(t("已清除量距", "Measurement cleared"));
+}
+
+function wipeStorageAndReload() {
+  localStorage.removeItem(STORAGE_KEY);
+  const url = new URL("index.html", location.href);
+  location.href = url.href;
+}
+
+function updateWorkflow() {
+  const steps = document.querySelectorAll(".workflow .step");
+  if (!steps.length) return;
+  const frame = frameValid(state.course.frame);
+  const locked = !!state.course.frameLocked;
+  steps[0].className = "step done";
+  steps[1].className = "step" + (frame ? " done" : " active");
+  steps[2].className = "step" + (frame && !locked ? " active" : frame ? " done" : "");
+  steps[3].className = "step" + (locked ? " active" : "");
+}
+
+function goToStep(n) {
+  remember();
+  if (n <= 3 && state.course.frameLocked) state.course.frameLocked = false;
+  if (n <= 2 && state.course.scaleLocked) {
+    state.course.scaleLocked = false;
+    setZoomControls(true);
+    syncScaleLockButton();
+    updateScaleChip();
+  }
+  if (n <= 1 && frameValid(state.course.frame)) {
+    state.course.frame = null;
+    state.course.autoFrame = false;
+    draw.start = null;
+    draw.temp = null;
+    renderFrame();
+  }
+  if (n >= 4) {
+    if (!frameValid(state.course.frame)) {
+      toast(t("請先圈選範圍", "Draw a frame first"));
+      setTool("frame");
+      persist();
+      renderSidebar();
+      return;
+    }
+    state.course.frameLocked = true;
+  }
+  renderSidebar();
+  persist();
+}
+
+function stepBack() {
+  if (state.course.frameLocked) {
+    remember();
+    state.course.frameLocked = false;
+    renderSidebar();
+    persist();
+    toast(t("已返回：範圍已解鎖，可再改圈選／比例", "Back: frame unlocked"));
+    return;
+  }
+  if (state.course.scaleLocked) {
+    unlockScale();
+    toast(t("已返回：比例已解鎖", "Back: scale unlocked"));
+    return;
+  }
+  if (frameValid(state.course.frame)) {
+    clearFrame();
+    return;
+  }
+  toast(t("已在第一步（選底圖／搜尋地點）", "Already at the first step"));
+}
+
+async function runClearAction(action) {
+  if (action === "undo") {
+    undo();
+    return;
+  }
+  if (action === "measure") {
+    clearMeasure();
+    return;
+  }
+  if (action === "frame") {
+    if (!frameValid(state.course.frame)) {
+      toast(t("尚未圈選範圍", "No frame yet"));
+      return;
+    }
+    clearFrame();
+    return;
+  }
+  if (action === "cps") {
+    const ok = await askConfirm({
+      title: t("清除檢查點？", "Clear controls?"),
+      body: t("只刪除起點／CP／終點，範圍與比例設定會保留。可用「返回」復原。", "Deletes start / controls / finish. Frame and scale stay. Undo still works."),
+      ok: t("清除檢查點", "Clear controls"),
+      danger: true,
+    });
+    if (ok) clearControlsOnly();
+    return;
+  }
+  if (action === "course") {
+    const ok = await askConfirm({
+      title: t("開新路線？", "New course?"),
+      body: t("會清空檢查點、範圍與鎖定，並覆寫本機暫存。建議先匯出 JSON。", "Clears controls, frame and locks, and overwrites the browser draft. Export JSON first if you need it."),
+      ok: t("全新路線", "Start fresh"),
+      danger: true,
+    });
+    if (ok) {
+      startFresh();
+      toast(t("已開新路線，本機暫存已覆寫", "New course — browser draft replaced"));
+    }
+    return;
+  }
+  if (action === "storage") {
+    const ok = await askConfirm({
+      title: t("清除本機暫存？", "Clear browser storage?"),
+      body: t("瀏覽器記住的路線、範圍、比例鎖定都會刪除，畫面會重新載入。未匯出的資料無法復原。條款同意會保留。", "The saved course, frame and scale lock in this browser will be deleted and the page will reload. Unexported work cannot be recovered. Terms agreement is kept."),
+      ok: t("清除並重新開始", "Clear and restart"),
+      danger: true,
+    });
+    if (ok) wipeStorageAndReload();
+  }
+}
+
 /* ---------- map ---------- */
 const map = L.map("map", {
   center: HK_CENTER,
@@ -144,6 +470,7 @@ function applyBasemap() {
 }
 
 function setLayer(id) {
+  if (id !== state.layer) remember();
   state.layer = id;
   if (id === "countryside") state.course.type = "countryside";
   if (id === "hm20c" && state.course.type === "countryside") {
@@ -321,6 +648,7 @@ function addFrameHandles(frame) {
   let ms = null;
   let mf = null;
   move.on("dragstart", (e) => {
+    remember();
     ms = e.target.getLatLng();
     mf = { ...state.course.frame };
   });
@@ -356,6 +684,7 @@ function addFrameHandles(frame) {
     const seHk = fromHk80(aHk.e + wM, aHk.n - hM);
     return { south: seHk.lat, west: f0.west, north: f0.north, east: seHk.lng };
   };
+  rs.on("dragstart", () => remember());
   rs.on("drag", (e) => drawFramePreview(previewFromSE(e.target.getLatLng())));
   rs.on("dragend", (e) => commitFrameRaw(previewFromSE(e.target.getLatLng()), true));
   rs.bindTooltip(t("拉角改大小", "Resize frame"), { direction: "left", opacity: 0.9 });
@@ -392,7 +721,7 @@ function fitSuggestion(w, h) {
 }
 
 /** 方式 1：按（鎖定）比例＋紙張建出「＝圖面大小」嘅框，可以拖移／拉角。 */
-function autoFrameFromScalePaper(keepCenter) {
+function autoFrameFromScalePaper(keepCenter, skipRemember) {
   const scale = currentScaleLock();
   const paper = state.course.paperSize || "A4";
   const a = paperAreaMeters(paper, scale);
@@ -400,6 +729,7 @@ function autoFrameFromScalePaper(keepCenter) {
   const w = Math.max(40, a.w - 60);
   const h = Math.max(40, a.h - 60);
   const f = state.course.frame;
+  if (!skipRemember) remember();
   const c =
     keepCenter && frameValid(f)
       ? { lat: (f.south + f.north) / 2, lng: (f.west + f.east) / 2 }
@@ -475,6 +805,7 @@ function fitFrame() {
 }
 
 function clearFrame() {
+  remember();
   state.course.frame = null;
   state.course.autoFrame = false;
   draw.start = null;
@@ -491,6 +822,7 @@ function commitFrame(a, b) {
     toast(t("範圍太小，請再拖大一點", "Frame too small"));
     return;
   }
+  remember();
   state.course.frame = frame;
   state.course.autoFrame = false; // 手動圈選 = 自訂範圍
   draw.start = null;
@@ -523,6 +855,9 @@ function renderCourse() {
   drawOverprint(courseLayer, state.course.controls, {
     draggable: true,
     lines: true,
+    onDragStart() {
+      remember();
+    },
     onDrag(ctrl, ll) {
       ctrl.lat = ll.lat;
       ctrl.lng = ll.lng;
@@ -563,6 +898,7 @@ function addControl(lat, lng, kind) {
     note: "",
     score: 0,
   };
+  remember();
   state.course.controls.push(ctrl);
   state.selectedId = ctrl.id;
   renderCourse();
@@ -571,6 +907,7 @@ function addControl(lat, lng, kind) {
 }
 
 function removeControl(id) {
+  remember();
   state.course.controls = state.course.controls.filter((c) => c.id !== id);
   if (state.selectedId === id) state.selectedId = null;
   renderCourse();
@@ -648,6 +985,7 @@ map.on("click", (e) => {
     return;
   }
   if (state.tool === "measure") {
+    remember();
     state.measure.push({ lat: e.latlng.lat, lng: e.latlng.lng });
     renderMeasure();
   }
@@ -705,6 +1043,7 @@ function syncScaleLockButton() {
 }
 
 function lockScale(silent) {
+  if (!silent) remember();
   const scale = currentScaleLock();
   state.course.scaleLocked = true;
   setZoomControls(false);
@@ -714,7 +1053,7 @@ function lockScale(silent) {
   /* 方式 1：LOCK 比例後自動建出「＝圖面大小」嘅框（如果仲未圈） */
   let created = false;
   if (!frameValid(state.course.frame)) {
-    autoFrameFromScalePaper(false);
+    autoFrameFromScalePaper(false, true);
     created = true;
   }
   if (!silent) persist();
@@ -722,6 +1061,7 @@ function lockScale(silent) {
 }
 
 function unlockScale() {
+  remember();
   state.course.scaleLocked = false;
   setZoomControls(true);
   syncScaleLockButton();
@@ -858,6 +1198,8 @@ function renderSidebar() {
   }
   document.body.classList.toggle("score-mode", state.course.playMode === "score");
   document.body.classList.toggle("frame-locked", !!state.course.frameLocked);
+  updateWorkflow();
+  updateHistoryButtons();
 }
 
 function renderPrintTable() {
@@ -966,6 +1308,7 @@ function importCourse(file) {
     try {
       const data = JSON.parse(reader.result);
       if (!data || !Array.isArray(data.controls)) throw new Error("format");
+      remember();
       const wasLocked = state.course.scaleLocked;
       state.course = { ...emptyCourse(), ...data, system: "Scout System" };
       if (!SCALE_PRESETS.includes(Number(state.course.scaleLock))) state.course.scaleLock = 20000;
@@ -1004,6 +1347,7 @@ function searchPlaces(q) {
 
 /* ---------- sample ---------- */
 function loadSample(kind) {
+  remember();
   const wasLocked = state.course.scaleLocked;
   if (wasLocked) {
     state.course.scaleLocked = false;
@@ -1068,8 +1412,7 @@ function bind() {
   document.querySelectorAll(".tool").forEach((b) => {
     b.addEventListener("click", () => {
       if (b.dataset.tool === "clear-measure") {
-        state.measure = [];
-        renderMeasure();
+        clearMeasure();
         return;
       }
       setTool(b.dataset.tool);
@@ -1084,20 +1427,23 @@ function bind() {
     if (s) flySheet("cm", s.dataset.id);
   });
   document.getElementById("course-name").addEventListener("input", (e) => {
+    rememberText();
     state.course.name = e.target.value;
     persist();
   });
-  document.getElementById("course-type").addEventListener("change", (e) => { state.course.type = e.target.value; persist(); });
-  document.getElementById("play-mode").addEventListener("change", (e) => { state.course.playMode = e.target.value; renderSidebar(); renderCourse(); persist(); });
+  document.getElementById("course-type").addEventListener("change", (e) => { remember(); state.course.type = e.target.value; persist(); });
+  document.getElementById("play-mode").addEventListener("change", (e) => { remember(); state.course.playMode = e.target.value; renderSidebar(); renderCourse(); persist(); });
   document.getElementById("paper-size").addEventListener("change", (e) => {
+    remember();
     state.course.paperSize = e.target.value;
     /* 方式 1：LOCK 住＋自動框 → 框隨紙張調大小；方式 2：提示放得曬比例 */
-    if (state.course.scaleLocked && state.course.autoFrame) autoFrameFromScalePaper(true);
+    if (state.course.scaleLocked && state.course.autoFrame) autoFrameFromScalePaper(true, true);
     else updateFrameInfo();
     persist();
   });
   document.getElementById("btn-lock-frame").addEventListener("click", () => {
     if (!frameValid(state.course.frame)) { toast(t("請先在地圖拖出設計範圍", "Draw a frame first")); setTool("frame"); return; }
+    remember();
     state.course.frameLocked = !state.course.frameLocked;
     document.getElementById("btn-lock-frame").textContent = state.course.frameLocked ? "已鎖定範圍（按此解鎖）" : "鎖定範圍，開始設定內容";
     renderSidebar(); persist();
@@ -1120,6 +1466,7 @@ function bind() {
     document.getElementById(id).addEventListener("input", (e) => {
       const sel = state.course.controls.find((c) => c.id === state.selectedId);
       if (!sel) return;
+      rememberText();
       const key = id.replace("ed-", "");
       sel[key] = e.target.value;
       renderCourse();
@@ -1163,10 +1510,11 @@ function bind() {
   document.getElementById("scale-select").addEventListener("change", (e) => {
     const s = Number(e.target.value);
     if (!SCALE_PRESETS.includes(s)) return;
+    remember();
     state.course.scaleLock = s;
     map.setZoom(zoomForScale(map.getCenter().lat, s), { animate: false });
     /* 方式 1：LOCK 住＋自動框 → 框隨比例調大小 */
-    if (state.course.scaleLocked && state.course.autoFrame) autoFrameFromScalePaper(true);
+    if (state.course.scaleLocked && state.course.autoFrame) autoFrameFromScalePaper(true, true);
     else updateFrameInfo();
     toast(
       state.course.scaleLocked
@@ -1212,6 +1560,7 @@ function bind() {
   document.getElementById("btn-gpx").addEventListener("click", exportGpx);
   ["course-meet", "course-cutoff", "course-sos"].forEach((id) => {
     document.getElementById(id).addEventListener("input", (e) => {
+      rememberText();
       const key = id.replace("course-", "");
       state.course[key] = e.target.value;
       persist();
@@ -1225,19 +1574,40 @@ function bind() {
     if (f) importCourse(f);
     e.target.value = "";
   });
-  document.getElementById("btn-new").addEventListener("click", () => {
-    if (!confirm(t("開新路線？未匯出的檢查點會留在本機暫存。", "Start a new course?"))) return;
-    const wasLocked = state.course.scaleLocked;
-    state.course = emptyCourse();
-    state.selectedId = null;
-    if (wasLocked) setZoomControls(true);
-    syncScaleSelect();
-    syncScaleLockButton();
-    renderCourse();
-    renderFrame();
-    renderSidebar();
-    updateScaleChip();
-    persist();
+  document.getElementById("btn-new").addEventListener("click", () => runClearAction("course"));
+  document.getElementById("btn-undo").addEventListener("click", undo);
+  document.getElementById("btn-undo-side").addEventListener("click", undo);
+  document.getElementById("btn-redo").addEventListener("click", redo);
+  document.getElementById("btn-clear-cps").addEventListener("click", () => runClearAction("cps"));
+  document.getElementById("btn-step-back").addEventListener("click", stepBack);
+  document.getElementById("btn-wipe").addEventListener("click", () => runClearAction("storage"));
+  document.getElementById("restore-keep").addEventListener("click", hideRestore);
+  document.getElementById("restore-undo").addEventListener("click", undo);
+  document.getElementById("restore-wipe").addEventListener("click", () => runClearAction("storage"));
+  document.querySelector(".workflow").addEventListener("click", (e) => {
+    const step = e.target.closest("[data-step]");
+    if (step) goToStep(Number(step.dataset.step));
+  });
+  const clearMenu = document.getElementById("clear-menu");
+  const clearBtn = document.getElementById("btn-clear-menu");
+  const closeClearMenu = () => {
+    clearMenu.hidden = true;
+    clearBtn.setAttribute("aria-expanded", "false");
+  };
+  clearBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = clearMenu.hidden;
+    clearMenu.hidden = !open;
+    clearBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  clearMenu.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-clear]");
+    if (!item) return;
+    closeClearMenu();
+    runClearAction(item.dataset.clear);
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".hist-clear")) closeClearMenu();
   });
   document.getElementById("btn-sample-u").addEventListener("click", () => loadSample("urban"));
   document.getElementById("btn-sample-c").addEventListener("click", () => loadSample("country"));
@@ -1289,6 +1659,24 @@ function bind() {
   });
 
   document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+      if (e.target.matches("input, textarea")) return;
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+      if (e.target.matches("input, textarea")) return;
+      e.preventDefault();
+      redo();
+      return;
+    }
+    if (e.key === "Escape") {
+      closeClearMenu();
+      document.getElementById("confirm").classList.remove("open");
+      document.getElementById("about").classList.remove("open");
+    }
     if (e.target.matches("input, textarea")) return;
     const mapKey = { 1: "hm20c", 2: "countryside", 3: "imagery", s: "start", c: "control", f: "finish", m: "measure", p: "pan", g: "grid", Escape: "pan" };
     if (e.key === "g" && !e.metaKey) {
@@ -1309,8 +1697,21 @@ function gotoGrid() {
 }
 
 function boot() {
-  const saved = loadAll().current;
+  const params = new URLSearchParams(location.search);
+  let wiped = false;
+  if (params.has("reset") || params.has("clear")) {
+    localStorage.removeItem(STORAGE_KEY);
+    params.delete("reset");
+    params.delete("clear");
+    const q = params.toString();
+    window.history.replaceState({}, "", location.pathname + (q ? "?" + q : "") + location.hash);
+    wiped = true;
+  }
+  const savedAll = loadAll();
+  const saved = savedAll.current;
+  if (savedAll.layer) state.layer = savedAll.layer;
   if (saved && Array.isArray(saved.controls)) state.course = { ...emptyCourse(), ...saved };
+  const restored = hasMeaningfulCourse(state.course);
   renderSheets();
   bind();
   applyBasemap();
@@ -1333,10 +1734,22 @@ function boot() {
     );
   }
   updateScaleChip();
+  updateHistoryButtons();
   updateReadout(L.latLng(HK_CENTER[0], HK_CENTER[1]));
   document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
   if (!localStorage.getItem(TERMS_KEY)) {
     document.getElementById("terms").classList.add("open");
+  }
+  if (wiped) toast(t("已清除本機暫存，從空白路線開始", "Browser draft cleared"));
+  else if (restored) {
+    hist.past.push({
+      course: emptyCourse(),
+      layer: "hm20c",
+      selectedId: null,
+      measure: [],
+    });
+    updateHistoryButtons();
+    showRestore(state.course.name);
   }
   const fit = () => map.invalidateSize();
   requestAnimationFrame(fit);
