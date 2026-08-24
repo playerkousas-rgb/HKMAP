@@ -10,7 +10,7 @@ import {
   formatDeg,
   frameBounds,
   frameValid,
-  fromHk80,
+  fromUtm,
   gridBearing,
   gridRefs,
   landsdUrl,
@@ -22,10 +22,22 @@ import {
   planarDistance,
   scaleDenominator,
   tileOptions,
-  toHk80,
+  toUtm,
+  toUtmInZone,
+  utmZoneForLng,
   zoomForScale,
 } from "./hkgeo.js";
 import { drawOverprint, orderedControls as orderControls } from "./overprint.js";
+import { clueTableHTML, FEATURE, APPEARANCE, POSITION } from "./iof.js";
+import {
+  RUNNABILITY,
+  POINT_SYM,
+  LINE_SYM,
+  URBAN_RUN,
+  URBAN_POINT,
+  URBAN_LINE,
+  annotationLayer,
+} from "./isom.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
@@ -36,6 +48,7 @@ const state = {
   tool: "pan",
   lang: "zh",
   gridOn: true,
+  cdOn: true,
   labelsOn: true,
   linesOn: true,
   leaderOn: false,
@@ -43,6 +56,9 @@ const state = {
   course: emptyCourse(),
   selectedId: null,
   measure: [],
+  annMode: null,
+  annSym: null,
+  annDraft: null,
 };
 
 function emptyCourse() {
@@ -61,6 +77,7 @@ function emptyCourse() {
     cutoff: "",
     sos: "",
     controls: [],
+    annotations: [],
   };
 }
 
@@ -262,6 +279,7 @@ function startFresh({ wipe = false, reload = false } = {}) {
   updateHistoryButtons();
   map.setView(HK_CENTER, 13);
   hideRestore();
+  document.getElementById("disc-select").classList.add("open");
   hist.ignore = false;
 }
 
@@ -361,6 +379,8 @@ map.createPane("csdiTrails");
 map.getPane("csdiTrails").style.zIndex = 360;
 map.createPane("csdiPosts");
 map.getPane("csdiPosts").style.zIndex = 370;
+map.createPane("ann");
+map.getPane("ann").style.zIndex = 390;
 
 const parks = csdiExportLayer(DATASETS.parks, "csdiParks");
 const trails = csdiExportLayer(DATASETS.trails, "csdiTrails");
@@ -369,6 +389,8 @@ const posts = csdiExportLayer(DATASETS.posts, "csdiPosts");
 const courseLayer = L.layerGroup().addTo(map);
 const measureLayer = L.layerGroup().addTo(map);
 const gridLayer = L.layerGroup().addTo(map);
+const annLayer = L.layerGroup().addTo(map);
+const annDraftLayer = L.layerGroup().addTo(map);
 
 function applyBasemap() {
   [basemap, imagery, parks, trails, posts].forEach((l) => {
@@ -393,6 +415,29 @@ function applyBasemap() {
   document.getElementById("sheet-hm20c").hidden = state.layer === "countryside";
   document.getElementById("sheet-cm").hidden = state.layer !== "countryside";
   renderGrid();
+}
+
+/** 賽種分開:野外定向顯示全部定向工具;城市定向只保留原本簡潔工具。 */
+function applyDiscipline() {
+  const forest = state.course.type !== "urban";
+  document.body.classList.toggle("disc-forest", forest);
+  document.body.classList.toggle("disc-urban", !forest);
+}
+
+/** 開始視窗揀賽種。 */
+function chooseDiscipline(type) {
+  remember();
+  state.course.type = type;
+  const sel = document.getElementById("course-type");
+  if (sel) sel.value = type;
+  if (!discScales().includes(Number(state.course.scaleLock)))
+    state.course.scaleLock = currentScaleLock();
+  applyDiscipline();
+  syncScaleSelect();
+  document.getElementById("disc-select").classList.remove("open");
+  renderSidebar();
+  persist();
+  toast(type === "urban" ? "城市定向" : "野外定向");
 }
 
 function setLayer(id) {
@@ -440,6 +485,7 @@ function applyPaperLayout() {
   setPx("--desc-head-h-screen", g.descHeadH);
   setPx("--pad-x-screen", g.padX);
   setPx("--pad-y-screen", g.padY);
+  setPx("--cd-cell-screen", 5);
   setMm("--sheet-w-print", g.sheetW);
   setMm("--sheet-h-print", g.sheetH);
   setMm("--map-w-print", g.mapW);
@@ -449,6 +495,7 @@ function applyPaperLayout() {
   setMm("--desc-head-h-print", g.descHeadH);
   setMm("--pad-x-print", g.padX);
   setMm("--pad-y-print", g.padY);
+  setMm("--cd-cell-print", 5);
 }
 
 function applyPaper() {
@@ -480,19 +527,12 @@ function fmtLen(m) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
-/* ---------- HK1980 1 km grid ---------- */
+/* ---------- HM20C / UTM 1 km 方格網（zone 49／50，跨 114° 連續）---------- */
 function renderGrid() {
   gridLayer.clearLayers();
   if (!state.gridOn) return;
   const b = map.getBounds();
-  const sw = toHk80(b.getSouth(), b.getWest());
-  const ne = toHk80(b.getNorth(), b.getEast());
   const step = map.getZoom() >= 15 ? 100 : 1000;
-  const pad = step;
-  const e0 = Math.floor((sw.e - pad) / step) * step;
-  const e1 = Math.ceil((ne.e + pad) / step) * step;
-  const n0 = Math.floor((sw.n - pad) / step) * step;
-  const n1 = Math.ceil((ne.n + pad) / step) * step;
   const major = step === 1000;
   const style = {
     color: state.layer === "imagery" ? "#f3ead0" : "#5b2d86",
@@ -500,51 +540,104 @@ function renderGrid() {
     opacity: major ? 0.45 : 0.28,
     interactive: false,
   };
+  // 畫面涵蓋哪些 UTM zone（114° 以西 49，以東 50）
+  const zones = new Set();
+  [
+    [b.getSouth(), b.getWest()],
+    [b.getSouth(), b.getEast()],
+    [b.getNorth(), b.getWest()],
+    [b.getNorth(), b.getEast()],
+    [b.getCenter().lat, b.getCenter().lng],
+  ].forEach(([la, ln]) => zones.add(utmZoneForLng(ln)));
+  zones.forEach((zone) => drawZoneGrid(zone, b, step, style, major));
+}
+
+/** 繪製單一 zone 的 UTM 方格，並按經度裁剪到該 zone 一側（避免跨 114° 重疊／錯位）。 */
+function drawZoneGrid(zone, b, step, style, major) {
+  // 該 zone 的經度裁剪窗（留少許重疊，縫合 114° 接邊）
+  const lngW = zone === 49 ? -200 : 113.999;
+  const lngE = zone === 49 ? 114.001 : 200;
+  // 四角投影到本 zone，取東距／北距範圍
+  const corners = [
+    [b.getSouth(), b.getWest()],
+    [b.getSouth(), b.getEast()],
+    [b.getNorth(), b.getWest()],
+    [b.getNorth(), b.getEast()],
+  ];
+  let eMin = Infinity;
+  let eMax = -Infinity;
+  let nMin = Infinity;
+  let nMax = -Infinity;
+  for (const [la, ln] of corners) {
+    const p = toUtmInZone(la, ln, zone);
+    eMin = Math.min(eMin, p.e);
+    eMax = Math.max(eMax, p.e);
+    nMin = Math.min(nMin, p.n);
+    nMax = Math.max(nMax, p.n);
+  }
+  const pad = step;
+  const e0 = Math.floor((eMin - pad) / step) * step;
+  const e1 = Math.ceil((eMax + pad) / step) * step;
+  const n0 = Math.floor((nMin - pad) / step) * step;
+  const n1 = Math.ceil((nMax + pad) / step) * step;
+  const samples = 12;
   const maxLines = 80;
+  const eastBase = zone === 49 ? 700000 : 100000;
+
   let count = 0;
+  // 垂直線（固定東距 E，北距 n0→n1）
   for (let e = e0; e <= e1 && count < maxLines; e += step, count++) {
-    const a = fromHk80(e, n0);
-    const c = fromHk80(e, n1);
-    L.polyline(
-      [
-        [a.lat, a.lng],
-        [c.lat, c.lng],
-      ],
-      style
-    ).addTo(gridLayer);
+    drawClippedLine(zone, lngW, lngE, samples, true, e, n0, n1, style);
     if (major && map.getZoom() >= 12) {
-      const lab = fromHk80(e, Math.min(ne.n, n1) - 80);
-      L.marker([lab.lat, lab.lng], {
-        interactive: false,
-        icon: L.divIcon({
-          className: "grid-lab",
-          html: `<span style="color:${style.color};font:700 10px/1 ui-monospace,monospace;opacity:.75">${Math.floor(e / 1000)}</span>`,
-        }),
-      }).addTo(gridLayer);
+      const km = Math.floor((((e - eastBase) % 100000) + 100000) % 100000 / 1000);
+      labelLineAt(zone, lngW, lngE, e, n1, String(km).padStart(2, "0"), style.color);
     }
   }
   count = 0;
+  // 水平線（固定北距 N，東距 e0→e1）
   for (let n = n0; n <= n1 && count < maxLines; n += step, count++) {
-    const a = fromHk80(e0, n);
-    const c = fromHk80(e1, n);
-    L.polyline(
-      [
-        [a.lat, a.lng],
-        [c.lat, c.lng],
-      ],
-      style
-    ).addTo(gridLayer);
+    drawClippedLine(zone, lngW, lngE, samples, false, n, e0, e1, style);
     if (major && map.getZoom() >= 12) {
-      const lab = fromHk80(Math.max(sw.e, e0) + 80, n);
-      L.marker([lab.lat, lab.lng], {
-        interactive: false,
-        icon: L.divIcon({
-          className: "grid-lab",
-          html: `<span style="color:${style.color};font:700 10px/1 ui-monospace,monospace;opacity:.75">${Math.floor(n / 1000)}</span>`,
-        }),
-      }).addTo(gridLayer);
+      const km = Math.floor(((n % 100000) + 100000) % 100000 / 1000);
+      labelLineAt(zone, lngW, lngE, e0, n, String(km).padStart(2, "0"), style.color);
     }
   }
+}
+
+/** 沿一條方格線取樣，按 zone 經度裁剪後繪出（可能切成多段）。
+ *  vertical=true：固定東距 fixedCoord，另一軸由 v0→v1；false：固定北距。 */
+function drawClippedLine(zone, lngW, lngE, samples, vertical, fixedCoord, v0, v1, style) {
+  const segs = [];
+  let seg = [];
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    const E = vertical ? fixedCoord : v0 + (v1 - v0) * t;
+    const N = vertical ? v0 + (v1 - v0) * t : fixedCoord;
+    const ll = fromUtm(E, N, zone);
+    if (ll.lng >= lngW && ll.lng <= lngE) {
+      seg.push([ll.lat, ll.lng]);
+    } else if (seg.length >= 2) {
+      segs.push(seg);
+      seg = [];
+    } else {
+      seg = [];
+    }
+  }
+  if (seg.length >= 2) segs.push(seg);
+  for (const s of segs) L.polyline(s, style).addTo(gridLayer);
+}
+
+/** 在方格線靠近畫面頂端／左緣處放一個小標籤（方格內 km，2 位）。 */
+function labelLineAt(zone, lngW, lngE, e, n, text, color) {
+  const ll = fromUtm(e, n, zone);
+  if (ll.lng < lngW || ll.lng > lngE) return;
+  L.marker([ll.lat, ll.lng], {
+    interactive: false,
+    icon: L.divIcon({
+      className: "grid-lab",
+      html: `<span style="color:${color};font:700 10px/1 ui-monospace,monospace;opacity:.75">${text}</span>`,
+    }),
+  }).addTo(gridLayer);
 }
 
 /* ---------- course graphics ---------- */
@@ -585,6 +678,7 @@ function renderCourse() {
     },
   });
   renderSheetInfo();
+  renderAnnotations();
   updateOffPaper();
 }
 
@@ -660,12 +754,229 @@ function renderMeasure() {
     .addTo(measureLayer);
 }
 
+/* ---------- 地圖標記 · 微地形／可跑性(ISOM)---------- */
+let annDrag = null; // 拖移面/線時的全域狀態
+
+function annPointScale() {
+  const z = map.getZoom();
+  const ref = 15; // ≈1:15 000
+  return Math.max(0.45, Math.min(3, Math.pow(2, z - ref)));
+}
+
+function renderAnnotations() {
+  annLayer.clearLayers();
+  const canDelete = state.tool === "delete";
+  const canMove = state.tool === "pan";
+  const interactive = canDelete || canMove;
+  const ps = annPointScale();
+  for (const a of state.course.annotations || []) {
+    const layer = annotationLayer(a, L, {
+      pointScale: ps,
+      interactive,
+      draggable: canMove && a.type === "point",
+    });
+    if (!layer) continue;
+    layer.addTo(annLayer);
+    if (canDelete) layer.on("click", () => deleteAnnotation(a.id));
+    if (canMove) {
+      if (a.type === "point" && layer.dragging) {
+        layer.on("dragend", () => {
+          const pos = layer.getLatLng();
+          a.latlngs[0] = { lat: pos.lat, lng: pos.lng };
+          remember();
+          persist();
+        });
+      } else if (a.type === "fill" || a.type === "line") {
+        enablePathDrag(layer, a);
+      }
+    }
+  }
+}
+
+function deleteAnnotation(id) {
+  remember();
+  state.course.annotations = (state.course.annotations || []).filter((x) => x.id !== id);
+  renderAnnotations();
+  persist();
+  toast(t("已刪除標記", "Annotation deleted"));
+}
+
+/** 面/線整體拖移(平移模式下,在圖層上按住拖動)。 */
+function enablePathDrag(layer, ann) {
+  layer.on("mousedown", (e) => {
+    if (state.tool !== "pan") return;
+    annDrag = {
+      layer,
+      ann,
+      start: e.latlng,
+      orig: ann.latlngs.map((p) => ({ lat: p.lat, lng: p.lng })),
+      moved: false,
+    };
+    map.dragging.disable();
+    L.DomEvent.stopPropagation(e);
+  });
+}
+
+function renderAnnPalette() {
+  const box = document.getElementById("ann-palette");
+  if (!box) return;
+  const forest = state.course.type !== "urban";
+  const RUN = forest ? RUNNABILITY : URBAN_RUN;
+  const PT = forest ? POINT_SYM : URBAN_POINT;
+  const LN = forest ? LINE_SYM : URBAN_LINE;
+  const fillLbl = forest ? "可跑性(面)" : "面狀(建築/鋪面)";
+  const ptLbl = forest ? "點狀微地形" : "點狀特徵";
+  const lnLbl = forest ? "線狀特徵" : "線狀(牆/圍欄/樓梯)";
+  const tag = forest ? "ISOM · 野外定向" : "ISSprOM · 城市定向";
+  const sw = (bg, border) =>
+    `<span class="ann-sw" style="background:${bg}${border ? ";border:1px solid " + border : ""}"></span>`;
+  const isActive = (mode, id) =>
+    state.annMode === mode && state.annSym === id ? " active" : "";
+  const runBtns = Object.entries(RUN)
+    .map(([id, v]) => `<button class="ann-btn${isActive("fill", id)}" data-amode="fill" data-asym="${id}">${sw(v.color, v.edge || "#00000040")}${v.t}</button>`)
+    .join("");
+  const ptBtns = Object.entries(PT)
+    .map(([id, v]) => `<button class="ann-btn${isActive("point", id)}" data-amode="point" data-asym="${id}">${sw(v.shape === "tree" ? "#2E7D32" : v.color, v.color)}${v.t}</button>`)
+    .join("");
+  const lnBtns = Object.entries(LN)
+    .map(([id, v]) => `<button class="ann-btn${isActive("line", id)}" data-amode="line" data-asym="${id}">${sw("transparent", v.color)}${v.t}</button>`)
+    .join("");
+  box.innerHTML =
+    `<p class="ann-tag">${tag}</p>` +
+    `<p class="ann-grp">${fillLbl}</p><div class="ann-row">${runBtns}</div>` +
+    `<p class="ann-grp">${ptLbl}</p><div class="ann-row">${ptBtns}</div>` +
+    `<p class="ann-grp">${lnLbl}</p><div class="ann-row">${lnBtns}</div>`;
+}
+
+function setAnnTool(mode, sym) {
+  cancelAnn();
+  state.annMode = mode;
+  state.annSym = sym;
+  state.tool = "ann";
+  if (mode === "fill" || mode === "line") map.doubleClickZoom.disable();
+  document.querySelectorAll(".tool").forEach((b) =>
+    b.classList.toggle("active", b.dataset.tool === "ann")
+  );
+  map.getContainer().style.cursor = "crosshair";
+  renderAnnPalette();
+  updateAnnDraftInfo();
+  renderAnnotations();
+}
+
+function updateAnnDraftInfo() {
+  const el = document.getElementById("ann-draft-info");
+  const fin = document.getElementById("btn-ann-finish");
+  const can = document.getElementById("btn-ann-cancel");
+  const drawing = state.tool === "ann" && (state.annMode === "fill" || state.annMode === "line");
+  if (el)
+    el.textContent = state.tool === "ann" && state.annMode === "point"
+      ? "點擊地圖蓋印(可連續)；完成後按「平移」退出。"
+      : "";
+  if (!drawing) {
+    if (fin) fin.hidden = true;
+    if (can) can.hidden = true;
+    return;
+  }
+  const n = state.annDraft ? state.annDraft.latlngs.length : 0;
+  if (el) el.textContent = `已點 ${n} 點，繼續點擊加點；雙擊或按「完成」收筆。`;
+  const minOK = state.annMode === "line" ? n >= 2 : n >= 3;
+  if (fin) fin.hidden = !minOK;
+  if (can) can.hidden = false;
+}
+
+function handleAnnClick(ll) {
+  if (state.annMode === "point") {
+    remember();
+    state.course.annotations = state.course.annotations || [];
+    state.course.annotations.push({
+      id: uid(),
+      type: "point",
+      sym: state.annSym,
+      latlngs: [{ lat: ll.lat, lng: ll.lng }],
+    });
+    renderAnnotations();
+    persist();
+    return;
+  }
+  if (!state.annDraft) state.annDraft = { latlngs: [] };
+  state.annDraft.latlngs.push({ lat: ll.lat, lng: ll.lng });
+  drawAnnDraft();
+  updateAnnDraftInfo();
+}
+
+function drawAnnDraft() {
+  annDraftLayer.clearLayers();
+  if (!state.annDraft || state.annDraft.latlngs.length === 0) return;
+  const ll = state.annDraft.latlngs.map((p) => [p.lat, p.lng]);
+  if (state.annMode === "fill") {
+    L.polygon(ll, {
+      color: "#d7b056", weight: 1.5, dashArray: "4 3",
+      fillColor: "#d7b056", fillOpacity: 0.18, interactive: false,
+    }).addTo(annDraftLayer);
+  } else {
+    L.polyline(ll, { color: "#d7b056", weight: 2.5, dashArray: "4 3", interactive: false }).addTo(annDraftLayer);
+  }
+  state.annDraft.latlngs.forEach((p) =>
+    L.circleMarker([p.lat, p.lng], { radius: 3, color: "#d7b056", fillOpacity: 1, interactive: false }).addTo(annDraftLayer)
+  );
+}
+
+function finishAnn() {
+  if (!state.annDraft || state.annDraft.latlngs.length < 2) return;
+  const pts = state.annDraft.latlngs;
+  // 雙擊會令尾兩點重疊，去重
+  if (pts.length >= 2) {
+    const a = pts[pts.length - 1], b = pts[pts.length - 2];
+    if (Math.abs(a.lat - b.lat) < 1e-7 && Math.abs(a.lng - b.lng) < 1e-7) pts.pop();
+  }
+  if (state.annMode === "fill" && pts.length < 3) {
+    toast(t("面至少要 3 點", "A polygon needs at least 3 points"));
+    return;
+  }
+  remember();
+  state.course.annotations = state.course.annotations || [];
+  state.course.annotations.push({
+    id: uid(),
+    type: state.annMode,
+    sym: state.annSym,
+    latlngs: pts.slice(),
+  });
+  state.annDraft = null;
+  annDraftLayer.clearLayers();
+  renderAnnotations();
+  persist();
+  updateAnnDraftInfo();
+  toast(t("已加標記", "Annotation added"));
+}
+
+function cancelAnn() {
+  state.annDraft = null;
+  annDraftLayer.clearLayers();
+  updateAnnDraftInfo();
+}
+
+function clearAnnotations() {
+  if (!(state.course.annotations && state.course.annotations.length)) {
+    toast(t("沒有標記可清除", "No annotations to clear"));
+    return;
+  }
+  remember();
+  state.course.annotations = [];
+  renderAnnotations();
+  persist();
+  toast(t("已清除全部標記", "Annotations cleared"));
+}
+
 /* ---------- events ---------- */
 map.on("mousemove", (e) => {
   updateReadout(e.latlng);
 });
 
 map.on("click", (e) => {
+  if (state.tool === "ann") {
+    handleAnnClick(e.latlng);
+    return;
+  }
   if (state.tool === "start" || state.tool === "control" || state.tool === "finish") {
     addControl(e.latlng.lat, e.latlng.lng, state.tool);
     return;
@@ -676,6 +987,36 @@ map.on("click", (e) => {
     renderMeasure();
   }
 });
+
+map.on("dblclick", () => {
+  if (state.tool === "ann" && (state.annMode === "fill" || state.annMode === "line")) {
+    finishAnn();
+  }
+});
+
+// 面/線拖移:全域 mousemove/mouseup(只加一次)
+map.on("mousemove", (e) => {
+  if (!annDrag) return;
+  annDrag.moved = true;
+  const dLat = e.latlng.lat - annDrag.start.lat;
+  const dLng = e.latlng.lng - annDrag.start.lng;
+  annDrag.layer.setLatLngs(annDrag.orig.map((p) => [p.lat + dLat, p.lng + dLng]));
+});
+map.on("mouseup", () => {
+  if (!annDrag) return;
+  const { layer, ann, moved } = annDrag;
+  map.dragging.enable();
+  annDrag = null;
+  if (moved) {
+    const raw = layer.getLatLngs();
+    const ring = ann.type === "fill" ? raw[0] : raw;
+    ann.latlngs = ring.map((p) => ({ lat: p.lat, lng: p.lng }));
+    remember();
+    persist();
+  }
+});
+// 縮放時重算點符號大小
+map.on("zoomend", renderAnnotations);
 
 map.on("moveend zoomend", () => {
   renderGrid();
@@ -688,20 +1029,26 @@ map.on("moveend zoomend", () => {
 
 function updateReadout(ll) {
   if (!ll) return;
-  const hk = toHk80(ll.lat, ll.lng);
-  const g = gridRefs(hk.e, hk.n);
+  const g = gridRefs(ll.lat, ll.lng);
   document.getElementById("readout").innerHTML = `
     <div><span class="k">WGS84</span> <b>${ll.lat.toFixed(6)}</b>, <b>${ll.lng.toFixed(6)}</b></div>
-    <div><span class="k">HK1980</span> E <b>${g.e}</b>　N <b>${g.n}</b></div>
-    <div><span class="k">方格</span> 1km <b>${g.km4}</b>　100m <b>${g.fig6}</b>　10m <b>${g.fig8}</b></div>
+    <div><span class="k">方格</span> <b>${g.fig8}</b>　（UTM ${g.zone}Q · HM20C 制）</div>
+    <div><span class="k">UTM</span> ${g.zone}Q ${g.square || "??"}　E <b>${g.e}</b>　N <b>${g.n}</b>　·　6 位 <b>${g.fig6}</b></div>
   `;
 }
 
-const SCALE_PRESETS = [5000, 10000, 15000, 20000];
+const SCALE_PRESETS = [4000, 5000, 10000, 15000, 20000];
+
+/** 各賽種的標準比例(不混用):野外 ISOM 1:10 000/15 000;城市 ISSprOM 1:4 000/5 000。 */
+function discScales() {
+  return state.course.type === "urban" ? [4000, 5000] : [10000, 15000];
+}
 
 function currentScaleLock() {
+  const scales = discScales();
   const s = Number(state.course.scaleLock);
-  return SCALE_PRESETS.includes(s) ? s : 20000;
+  if (scales.includes(s)) return s;
+  return state.course.type === "urban" ? 5000 : 15000;
 }
 
 function formatScale(n) {
@@ -713,7 +1060,12 @@ function scaleLabel(s) {
 }
 
 function syncScaleSelect() {
-  document.getElementById("scale-select").value = String(currentScaleLock());
+  const sel = document.getElementById("scale-select");
+  const scales = discScales();
+  sel.innerHTML = scales
+    .map((s) => `<option value="${s}">1 : ${s.toLocaleString("en-HK")}</option>`)
+    .join("");
+  sel.value = String(currentScaleLock());
 }
 
 function setZoomControls(on) {
@@ -783,10 +1135,18 @@ function updateScaleChip() {
 
 function setTool(tool) {
   state.tool = tool;
+  if (tool !== "ann") {
+    state.annMode = null;
+    state.annSym = null;
+    cancelAnn();
+    renderAnnPalette();
+    map.doubleClickZoom.enable();
+  }
   document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
   const cursor =
     tool === "pan" ? "" : tool === "delete" ? "not-allowed" : "crosshair";
   map.getContainer().style.cursor = cursor;
+  renderAnnotations();
 }
 
 /* ---------- 白紙外檢查（設計不會超出列印範圍） ---------- */
@@ -883,6 +1243,7 @@ function flySheet(series, id) {
 }
 
 function renderSidebar() {
+  applyDiscipline();
   document.getElementById("course-name").value = state.course.name;
   document.getElementById("course-type").value = state.course.type;
   document.getElementById("play-mode").value = state.course.playMode || "linear";
@@ -909,8 +1270,7 @@ function renderSidebar() {
   } else {
     box.innerHTML = list
       .map((c, i) => {
-        const hk = toHk80(c.lat, c.lng);
-        const g = gridRefs(hk.e, hk.n);
+        const g = gridRefs(c.lat, c.lng);
         const leg = i > 0 ? stats2.legs[i - 1] : null;
         const extra = leg
           ? `${Math.round(leg.d)} m · 方格 ${formatDeg(leg.g)} · 磁北 ${formatDeg(leg.m)}`
@@ -938,6 +1298,11 @@ function renderSidebar() {
     document.getElementById("ed-clue").value = sel.clue;
     document.getElementById("ed-note").value = sel.note;
     document.getElementById("ed-score").value = sel.score ?? 0;
+    const cd = sel.cd || {};
+    document.getElementById("ed-cd-feature").value = cd.feature || "";
+    document.getElementById("ed-cd-appearance").value = cd.appearance || "";
+    document.getElementById("ed-cd-position").value = cd.position || "";
+    document.getElementById("ed-cd-size").value = cd.size || "";
   }
   document.body.classList.toggle("score-mode", state.course.playMode === "score");
   updatePaperInfo();
@@ -972,8 +1337,7 @@ function renderSheetInfo() {
 
   descBody.innerHTML = list
     .map((c, i) => {
-      const hk = toHk80(c.lat, c.lng);
-      const g = gridRefs(hk.e, hk.n);
+      const g = gridRefs(c.lat, c.lng);
       const leg = i > 0 ? `${Math.round(stats.legs[i - 1].d)} m` : "—";
       const what = c.kind === "start" ? "起點" : c.kind === "finish" ? "終點" : "檢查點";
       const score =
@@ -987,6 +1351,35 @@ function renderSheetInfo() {
       </tr>`;
     })
     .join("");
+  renderCD();
+}
+
+/* ---------- IOF 控制點提示符號表(地圖同一張紙的角落覆蓋)---------- */
+function renderCD() {
+  const el = document.getElementById("cd-overlay");
+  if (!el) return;
+  const list = orderedControls();
+  if (!state.cdOn || !list.length) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const stats = courseStats();
+  // 由最後一個 CP 至終點的距離
+  let finishM = 0;
+  const realCtrls = list.filter((c) => c.kind === "control");
+  const fin = list.find((c) => c.kind === "finish");
+  const last =
+    realCtrls.length > 0
+      ? realCtrls[realCtrls.length - 1]
+      : list.find((c) => c.kind === "start");
+  if (fin && last && fin !== last) finishM = planarDistance(last, fin);
+  const meta = {
+    classes: state.course.playMode === "score" ? "SCORE" : "",
+    lengthKm: stats.dist >= 1000 ? (stats.dist / 1000).toFixed(1) : "",
+    climb: "",
+  };
+  el.innerHTML = clueTableHTML(list, meta, finishM);
 }
 
 /* ---------- persistence ---------- */
@@ -1064,7 +1457,8 @@ function importCourse(file) {
       const wasLocked = state.course.scaleLocked;
       state.course = { ...emptyCourse(), ...data, system: "Scout System" };
       state.course.orientation = normalizeOrientation(state.course.orientation);
-      if (!SCALE_PRESETS.includes(Number(state.course.scaleLock))) state.course.scaleLock = 20000;
+      if (!discScales().includes(Number(state.course.scaleLock)))
+        state.course.scaleLock = currentScaleLock();
       if (wasLocked && !state.course.scaleLocked) setZoomControls(true);
       applyPaper();
       renderCourse();
@@ -1149,8 +1543,43 @@ function loadSample(kind) {
   fitCourse();
 }
 
+/* ---------- IOF 提示符號 picker 下拉選單 ---------- */
+function populateCDPicker() {
+  const feat = document.getElementById("ed-cd-feature");
+  if (!feat) return;
+  const cats = {};
+  for (const [id, v] of Object.entries(FEATURE)) {
+    (cats[v.c] = cats[v.c] || []).push([id, v.t]);
+  }
+  const order = ["地貌", "石系", "水系", "植被", "人造"];
+  feat.innerHTML =
+    `<option value="">（未選）</option>` +
+    order
+      .filter((c) => cats[c])
+      .map(
+        (c) =>
+          `<optgroup label="${c}">${cats[c]
+            .map(([id, t]) => `<option value="${id}">${t}</option>`)
+            .join("")}</optgroup>`
+      )
+      .join("");
+  const app = document.getElementById("ed-cd-appearance");
+  app.innerHTML =
+    `<option value="">（無）</option>` +
+    Object.entries(APPEARANCE)
+      .map(([id, v]) => `<option value="${id}">${v.t}</option>`)
+      .join("");
+  const pos = document.getElementById("ed-cd-position");
+  pos.innerHTML =
+    `<option value="">（無）</option>` +
+    Object.entries(POSITION)
+      .map(([id, v]) => `<option value="${id}">${v.t}</option>`)
+      .join("");
+}
+
 /* ---------- boot ---------- */
 function bind() {
+  populateCDPicker();
   document.querySelectorAll(".basemaps button").forEach((b) => {
     b.addEventListener("click", () => setLayer(b.dataset.layer));
   });
@@ -1180,6 +1609,12 @@ function bind() {
   document.getElementById("course-type").addEventListener("change", (e) => {
     remember();
     state.course.type = e.target.value;
+    applyDiscipline();
+    if (!discScales().includes(Number(state.course.scaleLock)))
+      state.course.scaleLock = currentScaleLock();
+    syncScaleSelect();
+    cancelAnn();
+    renderAnnPalette();
     renderSheetInfo();
     persist();
   });
@@ -1225,6 +1660,11 @@ function bind() {
     document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
     renderGrid();
   });
+  document.getElementById("opt-cd").addEventListener("change", (e) => {
+    state.cdOn = e.target.checked;
+    document.getElementById("btn-cd").classList.toggle("on", state.cdOn);
+    renderCD();
+  });
   document.getElementById("opt-leader").addEventListener("change", (e) => {
     state.leaderOn = e.target.checked;
     document.body.classList.toggle("leader", state.leaderOn);
@@ -1253,6 +1693,26 @@ function bind() {
       persist();
     });
   });
+  ["ed-cd-feature", "ed-cd-appearance", "ed-cd-position"].forEach((id) => {
+    document.getElementById(id).addEventListener("change", (e) => {
+      const sel = state.course.controls.find((c) => c.id === state.selectedId);
+      if (!sel) return;
+      rememberText();
+      sel.cd = sel.cd || {};
+      sel.cd[id.replace("ed-cd-", "")] = e.target.value;
+      renderCD();
+      persist();
+    });
+  });
+  document.getElementById("ed-cd-size").addEventListener("input", (e) => {
+    const sel = state.course.controls.find((c) => c.id === state.selectedId);
+    if (!sel) return;
+    rememberText();
+    sel.cd = sel.cd || {};
+    sel.cd.size = e.target.value;
+    renderCD();
+    persist();
+  });
   document.getElementById("btn-grid").addEventListener("click", () => {
     state.gridOn = !state.gridOn;
     document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
@@ -1260,11 +1720,18 @@ function bind() {
     if (cb) cb.checked = state.gridOn;
     renderGrid();
   });
+  document.getElementById("btn-cd").addEventListener("click", () => {
+    state.cdOn = !state.cdOn;
+    document.getElementById("btn-cd").classList.toggle("on", state.cdOn);
+    const cb = document.getElementById("opt-cd");
+    if (cb) cb.checked = state.cdOn;
+    renderCD();
+  });
   document.getElementById("btn-fit-course").addEventListener("click", fitCourse);
   document.getElementById("offpaper-chip").addEventListener("click", fitCourse);
   document.getElementById("scale-select").addEventListener("change", (e) => {
     const s = Number(e.target.value);
-    if (!SCALE_PRESETS.includes(s)) return;
+    if (!discScales().includes(s)) return;
     remember();
     state.course.scaleLock = s;
     map.setZoom(zoomForScale(map.getCenter().lat, s), { animate: false });
@@ -1330,6 +1797,14 @@ function bind() {
   document.getElementById("btn-redo").addEventListener("click", redo);
   document.getElementById("btn-clear-cps").addEventListener("click", () => runClearAction("cps"));
   document.getElementById("btn-wipe").addEventListener("click", () => runClearAction("storage"));
+  document.getElementById("ann-palette").addEventListener("click", (e) => {
+    const b = e.target.closest(".ann-btn");
+    if (!b) return;
+    setAnnTool(b.dataset.amode, b.dataset.asym);
+  });
+  document.getElementById("btn-ann-finish").addEventListener("click", finishAnn);
+  document.getElementById("btn-ann-cancel").addEventListener("click", cancelAnn);
+  document.getElementById("btn-ann-clear").addEventListener("click", clearAnnotations);
   document.getElementById("restore-keep").addEventListener("click", hideRestore);
   document.getElementById("restore-undo").addEventListener("click", undo);
   document.getElementById("restore-wipe").addEventListener("click", () => runClearAction("storage"));
@@ -1374,7 +1849,11 @@ function bind() {
   document.getElementById("terms-ok").addEventListener("click", () => {
     localStorage.setItem(TERMS_KEY, "1");
     document.getElementById("terms").classList.remove("open");
+    if (!hasMeaningfulCourse(state.course) && !frameValid(state.course.frame))
+      document.getElementById("disc-select").classList.add("open");
   });
+  document.getElementById("disc-forest").addEventListener("click", () => chooseDiscipline("countryside"));
+  document.getElementById("disc-urban").addEventListener("click", () => chooseDiscipline("urban"));
 
   const q = document.getElementById("q");
   const sug = document.getElementById("suggest");
@@ -1444,8 +1923,8 @@ function bind() {
 
 function gotoGrid() {
   const parsed = parseGridInput(document.getElementById("grid-input").value);
-  if (!parsed) return toast(t("無法辨識方格坐標", "Cannot parse grid"));
-  const ll = fromHk80(parsed.e, parsed.n);
+  if (!parsed) return toast(t("無法辨識方格坐標（請用 KK 1234 5678 格式）", "Cannot parse grid (use e.g. KK 1234 5678)"));
+  const ll = fromUtm(parsed.e, parsed.n, parsed.zone);
   if (state.course.scaleLocked) map.setView([ll.lat, ll.lng], map.getZoom());
   else map.setView([ll.lat, ll.lng], 16);
   L.circleMarker([ll.lat, ll.lng], { radius: 8, color: "#d7b056" }).addTo(map);
@@ -1473,6 +1952,7 @@ function boot() {
   const restored = hasMeaningfulCourse(state.course) || frameValid(state.course.frame);
   renderSheets();
   bind();
+  renderAnnPalette();
   applyBasemap();
   applyPaper();
   renderCourse();
@@ -1494,8 +1974,13 @@ function boot() {
   updateHistoryButtons();
   updateReadout(L.latLng(HK_CENTER[0], HK_CENTER[1]));
   document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
+  document.getElementById("btn-cd").classList.toggle("on", state.cdOn);
+  const cdCb0 = document.getElementById("opt-cd");
+  if (cdCb0) cdCb0.checked = state.cdOn;
   if (!localStorage.getItem(TERMS_KEY)) {
     document.getElementById("terms").classList.add("open");
+  } else if (!restored) {
+    document.getElementById("disc-select").classList.add("open");
   }
   if (wiped) toast(t("已清除本機暫存，從空白路線開始", "Browser draft cleared"));
   else if (restored) {

@@ -89,8 +89,9 @@
         </div>
         <div class="opts">
           <label><input type="checkbox" id="opt-lines" checked /> 路線連線（紫紅套印）</label>
-          <label><input type="checkbox" id="opt-grid" checked /> HK1980 方格網</label>
-          <label><input type="checkbox" id="opt-leader" /> 領袖版：說明表印 HK1980 坐標</label>
+          <label><input type="checkbox" id="opt-grid" checked /> UTM 方格網（KK／QK，同 HM20C）</label>
+          <label id="opt-cd-wrap"><input type="checkbox" id="opt-cd" checked /> 印提示符號表（IOF 八欄，圖角）</label>
+          <label><input type="checkbox" id="opt-leader" /> 領袖版：說明表加印方格坐標（KK／QK）</label>
         </div>
         <button class="solid" id="btn-print-side" type="button" style="width:100%;margin-top:8px">🖨 列印地圖（＝畫面白紙）</button>
         <div class="row" style="margin-top:8px">
@@ -138,10 +139,36 @@
           <label class="field">檢查點說明（印給參加者）
             <textarea id="ed-clue" placeholder="例如：公園入口告示板、石橋北端、燈柱編號"></textarea>
           </label>
+          <div class="cd-picker">
+            <p class="notice" style="margin:0 0 6px"><strong>IOF 提示符號</strong>（揀了即顯示在圖角提示表）</p>
+            <label class="field">特徵物（D 欄）
+              <select id="ed-cd-feature"></select>
+            </label>
+            <div class="row">
+              <label class="field">外觀（E）<select id="ed-cd-appearance"></select></label>
+              <label class="field">大小（F）<input id="ed-cd-size" placeholder="如 1.0、8x4" /></label>
+            </div>
+            <label class="field">旗幟位置（G）<select id="ed-cd-position"></select></label>
+          </div>
           <label class="field">策劃備註（不印給參加者）<textarea id="ed-note"></textarea></label>
           <label class="field score-field">本 CP 分值<input id="ed-score" type="number" min="0" max="999" step="1" value="0" /></label>
         </div>
         <p class="notice" style="margin:8px 0 0">放好後按「列印地圖」：白紙上的紫紅 CP 圓圈原樣印出，參加者用紙圖玩，不用手機。</p>
+      </section>
+
+      <section class="panel" id="ann-panel">
+        <h2>地圖標記 · 微地形／可跑性</h2>
+        <p class="notice" style="margin:0 0 8px">按<strong>底圖類型</strong>自動切換兩套獨立符號,不混用。<strong>揀符號→喺地圖點擊</strong>：面＝圈範圍（雙擊或「完成」收筆）、線＝連點收筆、點＝即蓋印。<br /><strong>改標記</strong>：按「平移」即可拖移；按「刪除」再點標記即逐個刪。點符號隨比例縮放。</p>
+        <div id="ann-palette" class="ann-palette"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="solid" id="btn-ann-finish" type="button" hidden>✓ 完成收筆</button>
+          <button class="ghost paper" id="btn-ann-cancel" type="button" hidden>✗ 取消</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost danger" id="btn-ann-clear" type="button">清除全部標記</button>
+          <button class="tool" data-tool="pan" type="button">↩ 平移</button>
+        </div>
+        <p class="notice" id="ann-draft-info" style="margin:6px 0 0"></p>
       </section>
 
       <section class="panel" id="sheet-ib20000">
@@ -182,8 +209,8 @@
 
       <section class="panel">
         <h2>前往方格坐標</h2>
-        <label class="field">HK1980 / 6 位或 8 位
-          <input id="grid-input" placeholder="例如 835 817　或　83541 81726" />
+        <label class="field">方格（KK／QK）6 位或 8 位
+          <input id="grid-input" placeholder="例如 KK 0794 6642　或　KK 079 664" />
         </label>
         <button class="solid" id="btn-goto" type="button" style="width:100%">前往</button>
         <button class="tool" data-tool="clear-measure" type="button" style="width:100%;margin-top:6px">清除量距</button>
@@ -212,6 +239,7 @@
                 </div>
               </header>
               <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
+              <div class="cd-overlay" id="cd-overlay" aria-label="控制點提示符號表" hidden></div>
               <footer class="sheet-foot">
                 <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印</div>
                 <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
@@ -235,8 +263,8 @@
                     <tr>
                       <th>編號</th>
                       <th>說明</th>
-                      <th class="leader-only">HK1980</th>
-                      <th class="leader-only">100m 方格</th>
+                      <th class="leader-only">方格 8位</th>
+                      <th class="leader-only">方格 6位</th>
                       <th>段距</th>
                     </tr>
                   </thead>
@@ -266,7 +294,8 @@
           </select>
           <button class="chip" id="btn-scale-lock" type="button">🔒 鎖定比例</button>
         </div>
-        <button class="chip on" id="btn-grid" type="button">HK1980 方格網</button>
+        <button class="chip on" id="btn-grid" type="button">UTM 方格網</button>
+        <button class="chip on" id="btn-cd" type="button" title="提示符號表（IOF 八欄）">提示符號表</button>
         <button class="chip" id="btn-fit-course" type="button">對齊路線</button>
         <button class="chip" id="btn-locate" type="button">我的位置</button>
         <button class="chip warn-chip" id="offpaper-chip" type="button" hidden></button>
@@ -318,7 +347,7 @@
         <a href="https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf" target="_blank" rel="noopener">價目表</a>
       </p>
       <p><strong>郊遊圖／郊區地圖</strong> — 官方紙本共 5 幅。本系統「郊遊圖」模式以同一套官方地形圖為底，疊加漁護署開放數據：郊野公園、遠足徑、標距柱。</p>
-      <p><strong>坐標</strong> — WGS84 與香港 1980 方格網（EPSG:2326），以及 1 km / 100 m / 10 m 方格，對照 HM20C 圖邊數字。</p>
+      <p><strong>坐標</strong> — WGS84 經緯度，加上 HM20C／童軍慣用的 <strong>UTM 100 km 方格</strong>（zone 49Q：GE／HE；zone 50Q：JK／KK），即「KK 1234 5678」8 位方格，對照 HM20C 圖邊數字。</p>
       <div class="actions">
         <button class="solid" id="about-close" type="button">關閉</button>
       </div>
@@ -333,6 +362,26 @@
         <button class="ghost paper" id="confirm-no" type="button">取消</button>
         <button class="solid" id="confirm-yes" type="button">確定</button>
       </div>
+    </div>
+  </div>
+
+  <div id="disc-select" class="modal" role="dialog" aria-labelledby="disc-title" aria-modal="true">
+    <div class="dialog disc-dialog">
+      <h3 id="disc-title">先揀賽種</h3>
+      <p>兩者係不同工具，功能唔同，唔會混。</p>
+      <div class="disc-cards">
+        <button class="disc-card forest" id="disc-forest" type="button">
+          <span class="disc-emoji">🌲</span>
+          <strong>野外定向</strong>
+          <small>ISOM 定向地圖：可跑性／微地形標記、IOF 提示符號表、1:10 000／15 000</small>
+        </button>
+        <button class="disc-card urban" id="disc-urban" type="button">
+          <span class="disc-emoji">🏙️</span>
+          <strong>城市定向</strong>
+          <small>政府底圖放 CP、列印、UTM 座標、文字說明表、1:5 000</small>
+        </button>
+      </div>
+      <p class="notice" style="margin:10px 0 0">之後仍可喺左欄「底圖類型」切換。</p>
     </div>
   </div>
 

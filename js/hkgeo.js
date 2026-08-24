@@ -6,7 +6,7 @@
 export const HK80_PROJ =
   "+proj=tmerc +lat_0=22.31213333333334 +lon_0=114.1785555555556 +k=1 +x_0=836694.05 +y_0=819069.8 +ellps=intl +towgs84=-162.619,-276.959,-161.764,0.067753,-2.24365,-1.15883,-1.09425 +units=m +no_defs";
 
-export const MAG_DECLINATION_WEST = 3.1; // degrees, approx. 2026 Hong Kong
+export const MAG_DECLINATION_WEST = 3.1; // degrees, approx. 2026 Hong Kong（UTM 方格北↔磁北修正）
 export const LANDSD_API = "https://mapapi.geodata.gov.hk/gs/api/v1.0.0";
 export const CSDI_MAP = "https://portal.csdi.gov.hk/server/rest/services/common";
 
@@ -64,16 +64,92 @@ export function fromHk80(e, n) {
   return { lat, lng };
 }
 
+/* ---------- HM20C / UTM 方格（zone 49Q / 50Q，KK · JK · HE · GE）----------
+ * 紙本 HM20C 與童軍慣用的「KK 1234 5678」8 位方格，採用 UTM（環球橫墨卡托）
+ * 100 km 方格。香港橫跨 114° 子午線：以西 UTM zone 49（GE／HE），以東 zone 50（JK／KK）。
+ * 轉換方式與另一 app drawtheroute 一致；童軍不習慣 HK1980，故全面改用此制。 */
+export const UTM49_PROJ = "+proj=utm +zone=49 +datum=WGS84 +units=m +no_defs";
+export const UTM50_PROJ = "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs";
+
+/** MGRS 100 km 方格（香港範圍）。eastBase = 方格西邊的 UTM 東距；row = 北距字母行。 */
+export const UTM_SQUARES = {
+  GE: { zone: 49, eastBase: 700000, row: "E" },
+  HE: { zone: 49, eastBase: 800000, row: "E" },
+  JK: { zone: 50, eastBase: 100000, row: "K" },
+  KK: { zone: 50, eastBase: 200000, row: "K" },
+};
+
+const UTM_NORTH_LETTERS_ODD = "ABCDEFGHJKLMNPQRSTUV";
+const UTM_NORTH_LETTERS_EVEN = "FGHJKLMNPQRSTUVABCDE";
+
+export function ensureUtm() {
+  if (!window.proj4) throw new Error("proj4 not loaded");
+  if (!proj4.defs("EPSG:32649")) proj4.defs("EPSG:32649", UTM49_PROJ);
+  if (!proj4.defs("EPSG:32650")) proj4.defs("EPSG:32650", UTM50_PROJ);
+}
+
+/** 114° 以西 zone 49，以東 zone 50。 */
+export function utmZoneForLng(lng) {
+  return lng < 114.0 ? 49 : 50;
+}
+
+function utmEpsg(zone) {
+  return zone === 49 ? "EPSG:32649" : "EPSG:32650";
+}
+
+/** WGS84 → UTM，自動按經度選 zone。 */
+export function toUtm(lat, lng) {
+  ensureUtm();
+  const zone = utmZoneForLng(lng);
+  const [e, n] = proj4("EPSG:4326", utmEpsg(zone), [lng, lat]);
+  return { e, n, zone };
+}
+
+/** 強制以指定 zone 投影（方格繪圖與跨 114° 路段計算用）。 */
+export function toUtmInZone(lat, lng, zone) {
+  ensureUtm();
+  const [e, n] = proj4("EPSG:4326", utmEpsg(zone), [lng, lat]);
+  return { e, n };
+}
+
+/** UTM → WGS84（需提供 zone）。 */
+export function fromUtm(e, n, zone) {
+  ensureUtm();
+  const [lng, lat] = proj4(utmEpsg(zone), "EPSG:4326", [e, n]);
+  return { lat, lng };
+}
+
+export function resolveUtmSquare(zone, e) {
+  if (zone === 49) {
+    if (e >= 700000 && e < 800000) return "GE";
+    if (e >= 800000 && e < 900000) return "HE";
+  } else {
+    if (e >= 100000 && e < 200000) return "JK";
+    if (e >= 200000 && e < 300000) return "KK";
+  }
+  return null;
+}
+
+/** 該方格字母行在 UTM 北距的底邊（取 2,000,000 m 週期中最接近香港的一個）。 */
+function utmNorthBase(zone, rowLetter) {
+  const set = zone % 2 === 1 ? UTM_NORTH_LETTERS_ODD : UTM_NORTH_LETTERS_EVEN;
+  const row = set.indexOf(rowLetter);
+  if (row < 0) return 0;
+  const base = row * 100000;
+  const k = Math.round((2470000 - base) / 2000000); // 香港約在 N≈2,470,000
+  return base + k * 2000000;
+}
+
 export function planarDistance(a, b) {
-  const A = toHk80(a.lat, a.lng);
-  const B = toHk80(b.lat, b.lng);
+  const A = toUtm(a.lat, a.lng);
+  const B = toUtmInZone(b.lat, b.lng, A.zone); // 兩端同一 zone，跨 114° 亦連續
   return Math.hypot(B.e - A.e, B.n - A.n);
 }
 
-/** Grid bearing in degrees, 0 = north, clockwise. */
+/** Grid bearing in degrees, 0 = north, clockwise（UTM 方格北）。 */
 export function gridBearing(from, to) {
-  const A = toHk80(from.lat, from.lng);
-  const B = toHk80(to.lat, to.lng);
+  const A = toUtm(from.lat, from.lng);
+  const B = toUtmInZone(to.lat, to.lng, A.zone);
   const de = B.e - A.e;
   const dn = B.n - A.n;
   let deg = (Math.atan2(de, dn) * 180) / Math.PI;
@@ -93,68 +169,94 @@ export function formatDeg(deg) {
   return `${String(d).padStart(3, "0")}° ${String(m % 60).padStart(2, "0")}′`;
 }
 
-export function gridRefs(e, n) {
-  const eInt = Math.round(e);
-  const nInt = Math.round(n);
+function pad4(x) {
+  return String(x).padStart(4, "0");
+}
+function pad3(x) {
+  return String(x).padStart(3, "0");
+}
+
+/**
+ * HM20C 風格方格參照（UTM 100 km 方格）。
+ * 回傳 KK 1234 5678（8 位／10 m）與 KK 123 456（6 位／100 m）等格式。
+ * @param {number} lat
+ * @param {number} lng
+ */
+export function gridRefs(lat, lng) {
+  const { e: eRaw, n: nRaw, zone } = toUtm(lat, lng);
+  const e = Math.round(eRaw);
+  const n = Math.round(nRaw);
+  const square = resolveUtmSquare(zone, e);
+  if (!square) {
+    return {
+      e,
+      n,
+      zone,
+      square: null,
+      fig6: "?? ??? ???",
+      fig8: `${zone}Q ?? ???? ????`,
+      full: `${zone}Q ?? ???? ????`,
+    };
+  }
+  const eastBase = UTM_SQUARES[square].eastBase;
+  const eIn = e - eastBase; // 0..99999 方格內東距
+  const nIn = ((n % 100000) + 100000) % 100000; // 0..99999 方格內北距
+  const ref8 = `${zone}Q ${square} ${pad4(Math.floor(eIn / 10))} ${pad4(
+    Math.floor(nIn / 10)
+  )}`;
   return {
-    e: eInt,
-    n: nInt,
-    km4: `${String(Math.floor(eInt / 1000)).padStart(3, "0")}-${String(
-      Math.floor(nInt / 1000)
-    ).padStart(3, "0")}`,
-    fig6: `${String(Math.floor(eInt / 100)).slice(-3)}-${String(
-      Math.floor(nInt / 100)
-    ).slice(-3)}`,
-    fig8: `${String(Math.floor(eInt / 10)).slice(-5)}-${String(
-      Math.floor(nInt / 10)
-    ).slice(-5)}`,
-    full: `${eInt} / ${nInt}`,
+    e,
+    n,
+    zone,
+    square,
+    fig6: `${square} ${pad3(Math.floor(eIn / 100))} ${pad3(
+      Math.floor(nIn / 100)
+    )}`,
+    fig8: ref8,
+    full: ref8,
   };
 }
 
+/**
+ * 解析「KK 1234 5678」式方格輸入。接受：
+ *   KK 1234 5678（8 位／10 m）、KK 123 456（6 位／100 m）、KK 12 34（4 位／1 km）
+ *   KK12345678、50Q KK 1234 5678、kk 1234 5678；GE／HE／JK／KK 任一方格。
+ * 回傳 { e, n, zone }（UTM 東距／北距／zone），或 null。
+ */
 export function parseGridInput(raw) {
   const s = String(raw || "")
     .trim()
-    .replace(/[,;/|]+/g, " ")
-    .replace(/[EN東北en]/gi, " ")
-    .replace(/-/g, " ")
+    .toUpperCase()
+    .replace(/[,;|]+/g, " ")
     .replace(/\s+/g, " ");
   if (!s) return null;
-  const parts = s.split(" ");
-  if (parts.length === 1 && /^\d{6,10}$/.test(parts[0])) {
-    const t = parts[0];
-    const half = t.length / 2;
-    if (t.length % 2 === 0) {
-      return digitsToHk80(t.slice(0, half), t.slice(half));
-    }
+  let rest = s;
+  let zone = null;
+  const zm = rest.match(/^(49|50)Q\s*/);
+  if (zm) {
+    zone = Number(zm[1]);
+    rest = rest.slice(zm[0].length);
   }
-  if (parts.length >= 2) return digitsToHk80(parts[0], parts[1]);
-  return null;
-}
-
-function digitsToHk80(es, ns) {
-  const eDig = es.replace(/\D/g, "");
-  const nDig = ns.replace(/\D/g, "");
-  if (!eDig || !nDig) return null;
-  const expand = (d, kind) => {
-    const n = Number(d);
-    if (d.length >= 6) return n;
-    if (d.length === 5) return n * 10; // 10 m
-    if (d.length === 4) return n * 100; // 100 m
-    if (d.length === 3) {
-      // 1 km square: 835 / 817
-      return n * 1000 + 500;
-    }
-    if (d.length === 2) {
-      const base = kind === "e" ? 800000 : 800000;
-      return base + n * 1000 + 500;
-    }
-    return null;
-  };
-  const e = expand(eDig, "e");
-  const n = expand(nDig, "n");
-  if (e == null || n == null || Number.isNaN(e) || Number.isNaN(n)) return null;
-  return { e, n };
+  const sm = rest.match(/^(GE|HE|JK|KK)\s*/);
+  if (!sm) return null;
+  const square = sm[1];
+  rest = rest.slice(sm[0].length);
+  const info = UTM_SQUARES[square];
+  if (zone && zone !== info.zone) return null;
+  zone = info.zone;
+  const digs = rest.replace(/\D/g, "");
+  if (!digs || digs.length % 2 !== 0 || digs.length < 4) return null;
+  const half = digs.length / 2;
+  const eDig = digs.slice(0, half);
+  const nDig = digs.slice(half);
+  // 解析度：4 位/邊 = 10 m，3 位 = 100 m，2 位 = 1 km。取格中央。
+  const res = half >= 4 ? 10 : half === 3 ? 100 : 1000;
+  const eVal = Number(eDig) * res + res / 2;
+  const nVal = Number(nDig) * res + res / 2;
+  if (Number.isNaN(eVal) || Number.isNaN(nVal)) return null;
+  const E = info.eastBase + eVal;
+  const N = utmNorthBase(zone, info.row) + nVal;
+  return { e: E, n: N, zone, square };
 }
 
 export function metersPerPixel(lat, zoom) {
