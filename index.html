@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/app.css" />
 </head>
-<body data-paper="A4">
+<body data-paper="A4" data-orientation="landscape" data-preview="fit">
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -74,6 +74,10 @@
           <label class="field">遊玩方式<select id="play-mode"><option value="linear">越野式（按順序）</option><option value="score">奪分式（自由路線）</option></select></label>
           <label class="field">列印紙張<select id="paper-size"><option>A3</option><option selected>A4</option><option>A5</option></select></label>
         </div>
+        <div class="row">
+          <label class="field">紙張方向<select id="paper-orientation"><option value="landscape" selected>橫向</option><option value="portrait">直向</option></select></label>
+          <label class="field">螢幕顯示<select id="screen-preview"><option value="fit" selected>預覽模式（較似平常紙張）</option><option value="actual">實際 mm</option></select></label>
+        </div>
         <p class="notice" id="paper-info" style="margin:0 0 8px"></p>
         <div class="tools">
           <button class="tool active" data-tool="pan" type="button">平移</button>
@@ -107,7 +111,7 @@
           <button class="ghost paper" id="btn-sample-u" type="button">示範：城市</button>
           <button class="ghost paper" id="btn-sample-c" type="button">示範：郊遊</button>
         </div>
-        <p class="notice" style="margin:8px 0 0">路線會自動暫存在這部瀏覽器。卡住、想重來：按「↩ 返回」或「清除本機暫存」。網址加 <code>?reset=1</code> 也可強制清空。</p>
+        <p class="notice" style="margin:8px 0 0">路線會自動暫存在這部瀏覽器。列印頁邊距已改成盡量細（CSS 設為 0 mm；實際仍受瀏覽器／打印機可否無邊框所限）。卡住、想重來：按「↩ 返回」或「清除本機暫存」。網址加 <code>?reset=1</code> 也可強制清空。</p>
         <div class="stats">
           <div class="stat"><span>路線長度</span><strong id="stat-dist">0 m</strong></div>
           <div class="stat"><span>檢查點</span><strong id="stat-n">0</strong></div>
@@ -195,37 +199,50 @@
     <main class="mapwrap">
       <div class="deskscroll">
         <div class="desk">
-          <div class="sheet" id="sheet">
-            <header class="sheet-head">
-              <div>
-                <h1 id="sheet-title">定向地圖</h1>
-                <p id="sheet-meta"></p>
-              </div>
-              <div class="sheet-mark">
-                <img src="assets/mark.svg" alt="" />
-                <div>SCOUT SYSTEM<br /><small>設計＝列印</small></div>
-              </div>
-            </header>
-            <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
-            <footer class="sheet-foot">
-              <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印</div>
-              <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
-            </footer>
-            <div class="page-divider">— 以上為第 1 頁（白紙＝列印範圍）· 下方說明表印在第 2 頁 —</div>
-            <section class="desc">
-              <h2>檢查點說明</h2>
-              <table>
-                <thead>
-                  <tr>
-                    <th>編號</th>
-                    <th>說明</th>
-                    <th class="leader-only">HK1980</th>
-                    <th class="leader-only">100m 方格</th>
-                    <th>段距</th>
-                  </tr>
-                </thead>
-                <tbody id="desc-body"></tbody>
-              </table>
+          <div class="paper-stack">
+            <section class="sheet sheet-map" id="sheet-map">
+              <header class="sheet-head">
+                <div>
+                  <h1 id="sheet-title">定向地圖</h1>
+                  <p id="sheet-meta"></p>
+                </div>
+                <div class="sheet-mark">
+                  <img src="assets/mark.svg" alt="" />
+                  <div>SCOUT SYSTEM<br /><small>設計＝列印</small></div>
+                </div>
+              </header>
+              <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
+              <footer class="sheet-foot">
+                <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印</div>
+                <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
+              </footer>
+            </section>
+
+            <section class="sheet sheet-desc" id="sheet-desc">
+              <header class="sheet-head sheet-head-desc">
+                <div>
+                  <h2 id="desc-title">檢查點說明</h2>
+                  <p id="desc-meta"></p>
+                </div>
+                <div class="sheet-mark">
+                  <img src="assets/mark.svg" alt="" />
+                  <div>SCOUT SYSTEM<br /><small>第 2 頁</small></div>
+                </div>
+              </header>
+              <section class="desc">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>編號</th>
+                      <th>說明</th>
+                      <th class="leader-only">HK1980</th>
+                      <th class="leader-only">100m 方格</th>
+                      <th>段距</th>
+                    </tr>
+                  </thead>
+                  <tbody id="desc-body"></tbody>
+                </table>
+              </section>
             </section>
           </div>
         </div>

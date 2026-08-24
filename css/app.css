@@ -294,26 +294,44 @@ button, input, select, textarea { font-family: inherit; }
   display: flex;
   justify-content: center;
 }
+.paper-stack {
+  width: max-content;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  align-items: center;
+}
 
-/* 白紙：實際 mm 尺寸，同 @page 一致，所見即所得 */
+/* 螢幕：以 JS 計出像素尺寸；列印：@media print 改回 mm。 */
 .sheet {
+  width: var(--sheet-w-screen, 1123px);
+  min-height: var(--sheet-h-screen, 794px);
   background: #fff;
   box-shadow: 0 16px 50px rgba(0,0,0,.4);
-  padding: 8mm;
-  width: 297mm;
+  border-radius: 2px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
 }
-body[data-paper="A3"] .sheet { width: 420mm; }
-body[data-paper="A5"] .sheet { width: 210mm; }
+.sheet-map {
+  height: var(--sheet-h-screen, 794px);
+}
+.sheet-desc {
+  min-height: var(--sheet-h-screen, 794px);
+}
 
 .sheet-head {
-  height: 13mm;
+  min-height: var(--head-h-screen, 30px);
+  padding: var(--pad-y-screen, 12px) var(--pad-x-screen, 16px) 0;
   overflow: hidden;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
 }
-.sheet-head h1 {
+.sheet-head h1,
+.sheet-head h2 {
   margin: 0;
   font-size: 16px;
   line-height: 1.15;
@@ -329,42 +347,40 @@ body[data-paper="A5"] .sheet { width: 210mm; }
   line-height: 1.35;
   color: #444;
 }
+.sheet-head-desc {
+  min-height: var(--desc-head-h-screen, 38px);
+}
 .sheet-mark { display: flex; gap: 6px; align-items: center; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .sheet-mark img { width: 26px; height: 26px; border-radius: 7px; }
 .sheet-mark small { font-weight: 500; color: #666; }
 
-/* 地圖 = 紙面圖框（mm 實數，與列印 100% 相同） */
+/* 地圖 = 紙面圖框（第一頁幾乎滿版） */
 #map {
-  width: 281mm;
-  height: 168mm;
-  margin-top: 2mm;
+  width: var(--map-w-screen, 1123px);
+  height: var(--map-h-screen, 744px);
   border: 1px solid #222;
   background: #cfd6c8;
+  flex: 0 0 auto;
 }
-body[data-paper="A3"] #map { width: 404mm; height: 255mm; }
-body[data-paper="A5"] #map { width: 194mm; height: 106mm; }
 
 .sheet-foot {
-  height: 6mm;
+  min-height: var(--foot-h-screen, 19px);
+  padding: 0 var(--pad-x-screen, 16px) var(--pad-y-screen, 12px);
   overflow: hidden;
-  margin-top: 2mm;
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   font-size: 9.5px;
+  line-height: 1.2;
   color: #333;
 }
 
-.page-divider {
-  margin: 8px 0 10px;
-  border-top: 1.5px dashed #c0564f;
-  color: #c0564f;
-  font-size: 10px;
-  text-align: center;
-  padding-top: 4px;
+.desc {
+  flex: 1 1 auto;
+  padding: var(--pad-y-screen, 12px) var(--pad-x-screen, 16px) var(--pad-y-screen, 12px);
 }
-
-.desc h2 { font-size: 13px; margin: 0 0 6px; }
 .desc table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .desc th, .desc td { border: 1px solid #bbb; padding: 5px 7px; text-align: left; }
 .desc th { background: #f3eee3; }
@@ -754,11 +770,18 @@ label.field textarea { min-height: 60px; resize: vertical; }
 }
 
 /* ============ 列印：印出嘅就係畫面白紙（同一個 DOM，零轉換） ============ */
-@page { size: A4 landscape; margin: 8mm; }
-@page pageA3 { size: A3 landscape; margin: 8mm; }
-@page pageA5 { size: A5 landscape; margin: 8mm; }
-body[data-paper="A3"] { page: pageA3; }
-body[data-paper="A5"] { page: pageA5; }
+@page pageA4L { size: A4 landscape; margin: 0; }
+@page pageA4P { size: A4 portrait; margin: 0; }
+@page pageA3L { size: A3 landscape; margin: 0; }
+@page pageA3P { size: A3 portrait; margin: 0; }
+@page pageA5L { size: A5 landscape; margin: 0; }
+@page pageA5P { size: A5 portrait; margin: 0; }
+body[data-paper="A4"][data-orientation="landscape"] { page: pageA4L; }
+body[data-paper="A4"][data-orientation="portrait"] { page: pageA4P; }
+body[data-paper="A3"][data-orientation="landscape"] { page: pageA3L; }
+body[data-paper="A3"][data-orientation="portrait"] { page: pageA3P; }
+body[data-paper="A5"][data-orientation="landscape"] { page: pageA5L; }
+body[data-paper="A5"][data-orientation="portrait"] { page: pageA5P; }
 
 @media print {
   body { overflow: visible; background: #fff; }
@@ -770,7 +793,6 @@ body[data-paper="A5"] { page: pageA5; }
   .restore-bar,
   .modal,
   .toast,
-  .page-divider,
   .leaflet-control-container { display: none !important; }
   .app { display: block; height: auto; }
   .mapwrap {
@@ -783,13 +805,48 @@ body[data-paper="A5"] { page: pageA5; }
     overflow: visible;
     padding: 0;
   }
-  .desk { width: auto; min-width: 0; display: block; }
-  .sheet, body[data-paper="A3"] .sheet, body[data-paper="A5"] .sheet {
+  .desk,
+  .paper-stack {
     width: auto;
-    margin: 0;
-    padding: 0;
-    box-shadow: none;
+    min-width: 0;
+    display: block;
   }
-  /* #map 保持 mm 實數尺寸：設計時見到幾大，就印幾大 */
-  .desc { break-before: page; page-break-before: always; }
+  .sheet {
+    width: var(--sheet-w-print, 297mm);
+    min-height: var(--sheet-h-print, 210mm);
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    display: block;
+    break-after: page;
+    page-break-after: always;
+  }
+  .sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .sheet-map {
+    height: var(--sheet-h-print, 210mm);
+  }
+  .sheet-desc {
+    min-height: var(--sheet-h-print, 210mm);
+  }
+  .sheet-head {
+    min-height: var(--head-h-print, 8mm);
+    padding: var(--pad-y-print, 3mm) var(--pad-x-print, 4mm) 0;
+  }
+  .sheet-head-desc {
+    min-height: var(--desc-head-h-print, 10mm);
+  }
+  #map {
+    width: var(--map-w-print, 297mm);
+    height: var(--map-h-print, 197mm);
+  }
+  .sheet-foot {
+    min-height: var(--foot-h-print, 5mm);
+    padding: 0 var(--pad-x-print, 4mm) var(--pad-y-print, 3mm);
+  }
+  .desc {
+    padding: var(--pad-y-print, 3mm) var(--pad-x-print, 4mm) var(--pad-y-print, 3mm);
+  }
 }

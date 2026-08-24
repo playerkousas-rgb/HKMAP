@@ -211,18 +211,68 @@ export function zoomForScale(lat, scale, dpi = 96) {
   return Math.log2(num / targetMpp);
 }
 
-/** 設計＝列印：紙面圖框大小（mm）。@page landscape、8 mm 頁邊距，
- *  扣除圖名列（13 mm）與圖底列（8 mm）後的實際地圖面積。
- *  螢幕上的設計畫布與列印輸出都用同一組數字，所見即所得。 */
-export const PRINT_AREA_MM = {
-  A3: { w: 420 - 16, h: 297 - 16 - 26 },
-  A4: { w: 297 - 16, h: 210 - 16 - 26 },
-  A5: { w: 210 - 16, h: 148 - 16 - 26 },
+/** A-series finished paper sizes in mm. */
+export const PAPER_MM = {
+  A3: { w: 420, h: 297 },
+  A4: { w: 297, h: 210 },
+  A5: { w: 210, h: 148 },
 };
 
+/** 設計＝列印：盡量滿版，頁邊距交由瀏覽器 / 打印機自己處理。
+ *  第一頁保留很薄的圖名列與圖底列，其餘都給地圖。 */
+export const PAPER_LAYOUT_MM = {
+  head: 14,
+  foot: 7,
+  descHead: 12,
+  padX: 4,
+  padY: 2,
+};
+
+export function normalizeOrientation(orientation = "landscape") {
+  return orientation === "portrait" ? "portrait" : "landscape";
+}
+
+export function pageGeometryMm(paper, orientation = "landscape") {
+  const base = PAPER_MM[paper] || PAPER_MM.A4;
+  const dir = normalizeOrientation(orientation);
+  const sheetW = dir === "portrait" ? Math.min(base.w, base.h) : Math.max(base.w, base.h);
+  const sheetH = dir === "portrait" ? Math.max(base.w, base.h) : Math.min(base.w, base.h);
+  const mapW = sheetW;
+  const mapH = Math.max(40, sheetH - PAPER_LAYOUT_MM.head - PAPER_LAYOUT_MM.foot);
+  return {
+    sheetW,
+    sheetH,
+    mapW,
+    mapH,
+    headH: PAPER_LAYOUT_MM.head,
+    footH: PAPER_LAYOUT_MM.foot,
+    descHeadH: PAPER_LAYOUT_MM.descHead,
+    padX: PAPER_LAYOUT_MM.padX,
+    padY: PAPER_LAYOUT_MM.padY,
+  };
+}
+
+/** 各紙張 / 方向下第一頁地圖實際可印圖面（mm）。 */
+export const PRINT_AREA_MM = Object.fromEntries(
+  Object.keys(PAPER_MM).map((paper) => [
+    paper,
+    {
+      landscape: (() => {
+        const g = pageGeometryMm(paper, "landscape");
+        return { w: g.mapW, h: g.mapH };
+      })(),
+      portrait: (() => {
+        const g = pageGeometryMm(paper, "portrait");
+        return { w: g.mapW, h: g.mapH };
+      })(),
+    },
+  ])
+);
+
 /** 指定比例＋紙張下，列印圖面可容納的最大實際範圍（米）。 */
-export function paperAreaMeters(paper, scale) {
-  const area = PRINT_AREA_MM[paper] || PRINT_AREA_MM.A4;
+export function paperAreaMeters(paper, scale, orientation = "landscape") {
+  const dir = normalizeOrientation(orientation);
+  const area = PRINT_AREA_MM[paper]?.[dir] || PRINT_AREA_MM.A4.landscape;
   const mPerMm = scale / 1000; // 1:20 000 → 1 mm = 20 m
   return { w: area.w * mPerMm, h: area.h * mPerMm };
 }

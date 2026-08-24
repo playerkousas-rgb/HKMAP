@@ -15,6 +15,8 @@ import {
   gridRefs,
   landsdUrl,
   magneticBearing,
+  normalizeOrientation,
+  pageGeometryMm,
   paperAreaMeters,
   parseGridInput,
   planarDistance,
@@ -27,6 +29,7 @@ import { drawOverprint, orderedControls as orderControls } from "./overprint.js"
 
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
+const SCREEN_MM_PX = 96 / 25.4;
 
 const state = {
   layer: "hm20c",
@@ -36,6 +39,7 @@ const state = {
   labelsOn: true,
   linesOn: true,
   leaderOn: false,
+  previewMode: "fit",
   course: emptyCourse(),
   selectedId: null,
   measure: [],
@@ -49,6 +53,7 @@ function emptyCourse() {
     type: "urban",
     playMode: "linear",
     paperSize: "A4",
+    orientation: "landscape",
     scaleLock: 20000,
     scaleLocked: false,
     created: new Date().toISOString(),
@@ -400,9 +405,58 @@ function setLayer(id) {
 }
 
 /* ---------- 紙張（設計畫布＝列印頁） ---------- */
+function currentOrientation() {
+  return normalizeOrientation(state.course.orientation || "landscape");
+}
+
+function currentPreviewMode() {
+  return state.previewMode === "actual" ? "actual" : "fit";
+}
+
+function orientationLabel(dir, en = false) {
+  if (en) return dir === "portrait" ? "portrait" : "landscape";
+  return dir === "portrait" ? "直向" : "橫向";
+}
+
+function applyPaperLayout() {
+  const paper = state.course.paperSize || "A4";
+  const orientation = currentOrientation();
+  const g = pageGeometryMm(paper, orientation);
+  const host = document.querySelector(".mapwrap");
+  const hostW = host?.clientWidth || window.innerWidth || 1280;
+  const hostH = host?.clientHeight || window.innerHeight || 900;
+  const preview = currentPreviewMode();
+  const fitScale = Math.min((hostW - 72) / g.sheetW, (hostH - 72) / g.sheetH, 6);
+  const screenScale = preview === "fit" ? Math.max(0.7, fitScale) : SCREEN_MM_PX;
+  const root = document.body.style;
+  const setPx = (name, mm) => root.setProperty(name, `${(mm * screenScale).toFixed(2)}px`);
+  const setMm = (name, mm) => root.setProperty(name, `${mm}mm`);
+  setPx("--sheet-w-screen", g.sheetW);
+  setPx("--sheet-h-screen", g.sheetH);
+  setPx("--map-w-screen", g.mapW);
+  setPx("--map-h-screen", g.mapH);
+  setPx("--head-h-screen", g.headH);
+  setPx("--foot-h-screen", g.footH);
+  setPx("--desc-head-h-screen", g.descHeadH);
+  setPx("--pad-x-screen", g.padX);
+  setPx("--pad-y-screen", g.padY);
+  setMm("--sheet-w-print", g.sheetW);
+  setMm("--sheet-h-print", g.sheetH);
+  setMm("--map-w-print", g.mapW);
+  setMm("--map-h-print", g.mapH);
+  setMm("--head-h-print", g.headH);
+  setMm("--foot-h-print", g.footH);
+  setMm("--desc-head-h-print", g.descHeadH);
+  setMm("--pad-x-print", g.padX);
+  setMm("--pad-y-print", g.padY);
+}
+
 function applyPaper() {
   const paper = state.course.paperSize || "A4";
   document.body.dataset.paper = paper;
+  document.body.dataset.orientation = currentOrientation();
+  document.body.dataset.preview = currentPreviewMode();
+  applyPaperLayout();
   map.invalidateSize();
   updatePaperInfo();
 }
@@ -411,13 +465,15 @@ function updatePaperInfo() {
   const el = document.getElementById("paper-info");
   if (!el) return;
   const paper = state.course.paperSize || "A4";
+  const orientation = currentOrientation();
   const locked = !!state.course.scaleLocked;
   const s = locked ? currentScaleLock() : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
-  const a = paperAreaMeters(paper, s);
+  const a = paperAreaMeters(paper, s, orientation);
   el.innerHTML =
-    `白紙＝列印範圍：<strong>${paper} 橫向</strong> @ <strong>${scaleLabel(s)}</strong>` +
+    `白紙＝列印範圍：<strong>${paper} ${orientationLabel(orientation)}</strong> @ <strong>${scaleLabel(s)}</strong>` +
     (locked ? "（已鎖定）" : "（未鎖定，隨畫面縮放）") +
-    `，紙面覆蓋約 <strong>${fmtLen(a.w)} × ${fmtLen(a.h)}</strong>。紙以外不會列印。`;
+    `，紙面覆蓋約 <strong>${fmtLen(a.w)} × ${fmtLen(a.h)}</strong>。` +
+    `頁邊距已設為 <strong>0 mm</strong>（實際可印到幾貼邊，視瀏覽器／打印機支援的無邊框列印而定）。`;
 }
 
 function fmtLen(m) {
@@ -831,6 +887,8 @@ function renderSidebar() {
   document.getElementById("course-type").value = state.course.type;
   document.getElementById("play-mode").value = state.course.playMode || "linear";
   document.getElementById("paper-size").value = state.course.paperSize || "A4";
+  document.getElementById("paper-orientation").value = currentOrientation();
+  document.getElementById("screen-preview").value = currentPreviewMode();
   const stats = courseStats();
   document.getElementById("stat-dist").textContent =
     stats.dist >= 1000 ? `${(stats.dist / 1000).toFixed(2)} km` : `${Math.round(stats.dist)} m`;
@@ -890,22 +948,27 @@ function renderSidebar() {
 function renderSheetInfo() {
   const titleEl = document.getElementById("sheet-title");
   const metaEl = document.getElementById("sheet-meta");
+  const descTitleEl = document.getElementById("desc-title");
+  const descMetaEl = document.getElementById("desc-meta");
   const descBody = document.getElementById("desc-body");
-  if (!titleEl || !metaEl || !descBody) return;
+  if (!titleEl || !metaEl || !descBody || !descTitleEl || !descMetaEl) return;
   const stats = courseStats();
   const list = orderedControls();
   titleEl.textContent = state.course.name || "定向地圖";
   const kind = state.course.type === "countryside" ? "野外／郊遊定向" : "城市定向";
   const mode = state.course.playMode === "score" ? "奪分式（自由路線）" : "越野式（按順序）";
+  const orientation = currentOrientation();
   const distTxt = stats.dist >= 1000 ? `${(stats.dist / 1000).toFixed(2)} km` : `${Math.round(stats.dist)} m`;
   const s = state.course.scaleLocked
     ? currentScaleLock()
     : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
-  let meta = `${kind}　·　${mode}　·　比例 ${scaleLabel(s)}${state.course.scaleLocked ? "（鎖定）" : ""}　·　${list.length} 個點　·　約 ${distTxt}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
+  let meta = `${kind}　·　${mode}　·　${state.course.paperSize || "A4"} ${orientationLabel(orientation)}　·　比例 ${scaleLabel(s)}${state.course.scaleLocked ? "（鎖定）" : ""}　·　${list.length} 個點　·　約 ${distTxt}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
   if (state.course.meet) meta += `　·　集合 ${state.course.meet}`;
   if (state.course.cutoff) meta += `　·　截止 ${state.course.cutoff}`;
   if (state.course.sos) meta += `　·　緊急 ${state.course.sos}`;
   metaEl.textContent = meta;
+  descTitleEl.textContent = `${state.course.name || "定向地圖"} · 檢查點說明`;
+  descMetaEl.textContent = `${state.course.paperSize || "A4"} ${orientationLabel(orientation)}　·　第 2 頁　·　${list.length} 個點`;
 
   descBody.innerHTML = list
     .map((c, i) => {
@@ -931,6 +994,7 @@ function persist() {
   const all = loadAll();
   all.current = state.course;
   all.layer = state.layer;
+  all.previewMode = state.previewMode;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
 }
 
@@ -999,6 +1063,7 @@ function importCourse(file) {
       remember();
       const wasLocked = state.course.scaleLocked;
       state.course = { ...emptyCourse(), ...data, system: "Scout System" };
+      state.course.orientation = normalizeOrientation(state.course.orientation);
       if (!SCALE_PRESETS.includes(Number(state.course.scaleLock))) state.course.scaleLock = 20000;
       if (wasLocked && !state.course.scaleLocked) setZoomControls(true);
       applyPaper();
@@ -1132,6 +1197,24 @@ function bind() {
     renderSheetInfo();
     persist();
     toast(t(`紙張已改為 ${state.course.paperSize}，白紙＝列印頁`, `Paper set to ${state.course.paperSize}`));
+  });
+  document.getElementById("paper-orientation").addEventListener("change", (e) => {
+    remember();
+    state.course.orientation = normalizeOrientation(e.target.value);
+    applyPaper();
+    renderSheetInfo();
+    persist();
+    toast(t(`紙張已改為 ${orientationLabel(currentOrientation())}`, `Orientation set to ${orientationLabel(currentOrientation(), true)}`));
+  });
+  document.getElementById("screen-preview").addEventListener("change", (e) => {
+    state.previewMode = e.target.value === "actual" ? "actual" : "fit";
+    applyPaper();
+    persist();
+    toast(
+      state.previewMode === "fit"
+        ? t("已切換到螢幕預覽模式", "Screen preview on")
+        : t("已切換到實際 mm 顯示", "Actual mm view")
+    );
   });
   document.getElementById("opt-lines").addEventListener("change", (e) => {
     state.linesOn = e.target.checked;
@@ -1382,7 +1465,11 @@ function boot() {
   const savedAll = loadAll();
   const saved = savedAll.current;
   if (savedAll.layer) state.layer = savedAll.layer;
+  if (savedAll.previewMode === "actual" || savedAll.previewMode === "fit") {
+    state.previewMode = savedAll.previewMode;
+  }
   if (saved && Array.isArray(saved.controls)) state.course = { ...emptyCourse(), ...saved };
+  state.course.orientation = normalizeOrientation(state.course.orientation);
   const restored = hasMeaningfulCourse(state.course) || frameValid(state.course.frame);
   renderSheets();
   bind();
@@ -1421,7 +1508,10 @@ function boot() {
     updateHistoryButtons();
     showRestore(state.course.name);
   }
-  const fit = () => map.invalidateSize();
+  const fit = () => {
+    applyPaperLayout();
+    map.invalidateSize();
+  };
   requestAnimationFrame(fit);
   setTimeout(fit, 250);
   window.addEventListener("resize", fit);
