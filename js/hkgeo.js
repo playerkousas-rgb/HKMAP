@@ -420,6 +420,13 @@ export const GAZETTEER = [
 const TRANSPARENT_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
 
+/* 郊遊圖底圖：OpenTopoMap 突顯山徑、等高線，適合野外定向；官方郊區地圖仍是紙本，此圖磚作規劃用 */
+export const COUNTRYSIDE_TILE_URL =
+  "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
+export const COUNTRYSIDE_SUBDOMAINS = ["a", "b", "c"];
+export const COUNTRYSIDE_ATTRIBUTION =
+  "© OpenTopoMap (CC-BY-SA) © OpenStreetMap contributors · 郊遊圖參考，底圖含 LandsD 地形 · © Scout System";
+
 export function landsdUrl(kind, lang = "tc") {
   if (kind === "basemap") return `${LANDSD_API}/xyz/basemap/WGS84/{z}/{x}/{y}.png`;
   if (kind === "imagery") return `${LANDSD_API}/xyz/imagery/WGS84/{z}/{x}/{y}.png`;
@@ -434,6 +441,18 @@ export function tileOptions(extra = {}) {
     errorTileUrl: TRANSPARENT_PNG,
     attribution:
       'Map from Lands Department · Aerial Photograph from Lands Department · © Scout System',
+    ...extra,
+  };
+}
+
+export function countrysideTileOptions(extra = {}) {
+  return {
+    minZoom: 10,
+    maxZoom: 17,
+    maxNativeZoom: 17,
+    subdomains: COUNTRYSIDE_SUBDOMAINS,
+    errorTileUrl: TRANSPARENT_PNG,
+    attribution: COUNTRYSIDE_ATTRIBUTION,
     ...extra,
   };
 }

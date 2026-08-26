@@ -4,6 +4,7 @@ import {
   HK_CENTER,
   HM20C_SHEETS,
   MAG_DECLINATION_WEST,
+  COUNTRYSIDE_TILE_URL,
   formatDeg,
   fromUtm,
   gridBearing,
@@ -17,6 +18,7 @@ import {
   planarDistance,
   scaleDenominator,
   tileOptions,
+  countrysideTileOptions,
   toUtmInZone,
   utmZoneForLng,
   zoomForScale,
@@ -372,18 +374,23 @@ const map = L.map("map", {
 const labels = L.tileLayer(landsdUrl("label", "tc"), tileOptions({ pane: "overlayPane", opacity: 0.95 }));
 const basemap = L.tileLayer(landsdUrl("basemap"), tileOptions({ minZoom: 10 }));
 const imagery = L.tileLayer(landsdUrl("imagery"), tileOptions({ minZoom: 10 }));
+const countryside = L.tileLayer(COUNTRYSIDE_TILE_URL, countrysideTileOptions());
 
 const courseLayer = L.layerGroup().addTo(map);
 const measureLayer = L.layerGroup().addTo(map);
 const gridLayer = L.layerGroup().addTo(map);
 
 function applyBasemap() {
-  [basemap, imagery].forEach((l) => {
+  [basemap, imagery, countryside].forEach((l) => {
     if (map.hasLayer(l)) map.removeLayer(l);
   });
   if (state.layer === "imagery") imagery.addTo(map);
+  else if (state.layer === "countryside") countryside.addTo(map);
   else basemap.addTo(map);
-  if (state.labelsOn) labels.addTo(map);
+
+  // 郊遊圖已有自帶地名，不疊加 LandsD label；其餘兩種保留
+  const wantLabels = state.labelsOn && state.layer !== "countryside";
+  if (wantLabels) labels.addTo(map);
   else if (map.hasLayer(labels)) map.removeLayer(labels);
 
   document.querySelectorAll(".basemaps button").forEach((b) => {
@@ -392,8 +399,14 @@ function applyBasemap() {
   renderGrid();
 }
 
+function normalizeLayer(id) {
+  if (id === "imagery") return "imagery";
+  if (id === "countryside") return "countryside";
+  return "hm20c";
+}
+
 function setLayer(id) {
-  const layer = id === "imagery" ? "imagery" : "hm20c";
+  const layer = normalizeLayer(id);
   if (layer !== state.layer) remember();
   state.layer = layer;
   applyBasemap();
@@ -524,7 +537,12 @@ function renderGrid() {
   const step = map.getZoom() >= 15 ? 100 : 1000;
   const major = step === 1000;
   const style = {
-    color: state.layer === "imagery" ? "#f3ead0" : "#5b2d86",
+    color:
+      state.layer === "imagery"
+        ? "#f3ead0"
+        : state.layer === "countryside"
+        ? "#2f5a3a"
+        : "#5b2d86",
     weight: major ? 1 : 0.5,
     opacity: major ? 0.45 : 0.28,
     interactive: false,
@@ -1417,13 +1435,13 @@ function bind() {
       setTool("pan");
     }
     if (event.target.matches("input, textarea")) return;
-    const mapKey = { 1: "hm20c", 2: "imagery", s: "start", c: "control", f: "finish", m: "measure", p: "pan" };
+    const mapKey = { 1: "hm20c", 2: "countryside", 3: "imagery", s: "start", c: "control", f: "finish", m: "measure", p: "pan" };
     if (event.key.toLowerCase() === "g" && !event.metaKey) {
       document.getElementById("btn-grid").click();
       return;
     }
     if (mapKey[event.key]) {
-      if (["hm20c", "imagery"].includes(mapKey[event.key])) setLayer(mapKey[event.key]);
+      if (["hm20c", "countryside", "imagery"].includes(mapKey[event.key])) setLayer(mapKey[event.key]);
       else setTool(mapKey[event.key]);
     }
   });
@@ -1454,7 +1472,7 @@ function boot() {
   }
   const savedAll = loadAll();
   const saved = savedAll.current;
-  if (savedAll.layer) state.layer = savedAll.layer === "imagery" ? "imagery" : "hm20c";
+  if (savedAll.layer) state.layer = normalizeLayer(savedAll.layer);
   if (savedAll.previewMode === "actual" || savedAll.previewMode === "fit") {
     state.previewMode = savedAll.previewMode;
   }
@@ -1464,6 +1482,26 @@ function boot() {
   if (saved && Array.isArray(saved.controls)) state.course = normalizeCourse(saved);
   state.course.orientation = normalizeOrientation(state.course.orientation);
   const restored = hasMeaningfulCourse(state.course);
+
+  // 支援從 download.html 跳過來：?fly=lat,lng&layer=countryside
+  let flyTarget = null;
+  if (params.has("layer")) {
+    state.layer = normalizeLayer(params.get("layer"));
+  }
+  if (params.has("fly")) {
+    const parts = params.get("fly").split(",").map(Number);
+    if (parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
+      flyTarget = { lat: parts[0], lng: parts[1], zoom: 13 };
+    }
+  } else if (savedAll.flyTo && Number.isFinite(savedAll.flyTo.lat) && Number.isFinite(savedAll.flyTo.lng)) {
+    flyTarget = savedAll.flyTo;
+    // 用完即清，避免下次一直飛
+    try {
+      delete savedAll.flyTo;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedAll));
+    } catch {}
+  }
+
   renderSheets();
   bind();
   applyBasemap();
@@ -1472,8 +1510,11 @@ function boot() {
   renderMeasure();
   renderSidebar();
   syncScaleSelect();
-  /* 還原上次視圖：有路線時先把第一個點放在畫面中心。 */
-  if (state.course.controls[0]) map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
+  /* 還原上次視圖：有路線時先把第一個點放在畫面中心，否則若有 fly 參數則飛過去。 */
+  if (flyTarget) {
+    map.setView([flyTarget.lat, flyTarget.lng], flyTarget.zoom || 13);
+    toast(t(`已切換到 ${state.layer === "countryside" ? "郊遊圖" : state.layer} 並飛往此區`, `Switched to ${state.layer} and flew to area`));
+  } else if (state.course.controls[0]) map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
   if (state.course.scaleLocked) {
     lockScale(true);
     toast(t(`比例已鎖定 ${scaleLabel(currentScaleLock())}`, `Scale locked at ${scaleLabel(currentScaleLock())}`));

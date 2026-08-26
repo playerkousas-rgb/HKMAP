@@ -124,17 +124,57 @@ export const EHKG_GROUPS = [
 ];
 
 export const COUNTRYSIDE_MAPS = [
-  { code: "CM-HK", name: "香港島及鄰近島嶼", edition: "第十一版（2025）", size: "610 × 880 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-HKIs_n_NeighbourIs_MAP-2025_11.jpg", areas: "香港島、南丫島、東龍洲、蒲台等" },
-  { code: "CM-LT", name: "大嶼山及鄰近島嶼", edition: "第十一版（2025）", size: "880 × 610 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-LantauIs_n_NeighbourIs_MAP-2025_11.jpg", areas: "大嶼山、長洲、坪洲、索罟群島、龍鼓洲、沙洲等" },
-  { code: "CM-NW", name: "新界西北部", edition: "第十二版（2023）", size: "610 × 880 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-NTNW_MAP-2023_12.jpg", areas: "元朗、屯門、大欖涌、荃灣、青衣等" },
-  { code: "CM-NE", name: "新界東北及中部", edition: "第十版（2023）", size: "610 × 880 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-NTNE_n_Central_MAP.jpg", areas: "沙田、大埔、粉嶺、沙頭角、吉澳、平洲等" },
-  { code: "CM-SK", name: "西貢及清水灣", edition: "第十七版（2026）", size: "880 × 610 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/cm-sk_n_cwb_map-2026.jpg", areas: "馬鞍山、將軍澳、塔門、果洲群島等" },
+  { code: "CM-HK", name: "香港島及鄰近島嶼", edition: "第十一版（2025）", size: "610 × 880 mm", scale: "1:20 000", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-HKIs_n_NeighbourIs_MAP-2025_11.jpg", areas: "香港島、南丫島、東龍洲、蒲台等", center: [22.25, 114.17] },
+  { code: "CM-LT", name: "大嶼山及鄰近島嶼", edition: "第十一版（2025）", size: "880 × 610 mm", scale: "1:25 000", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-LantauIs_n_NeighbourIs_MAP-2025_11.jpg", areas: "大嶼山、長洲、坪洲、索罟群島、龍鼓洲、沙洲等", center: [22.26, 113.93] },
+  { code: "CM-NW", name: "新界西北部", edition: "第十二版（2023）", size: "610 × 880 mm", scale: "1:25 000", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-NTNW_MAP-2023_12.jpg", areas: "元朗、屯門、大欖涌、荃灣、青衣等", center: [22.42, 114.02] },
+  { code: "CM-NE", name: "新界東北及中部", edition: "第十版（2023）", size: "610 × 880 mm", scale: "1:25 000", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-NTNE_n_Central_MAP.jpg", areas: "沙田、大埔、粉嶺、沙頭角、吉澳、平洲等", center: [22.47, 114.20] },
+  { code: "CM-SK", name: "西貢及清水灣", edition: "第十七版（2026）", size: "880 × 610 mm", scale: "1:25 000", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/cm-sk_n_cwb_map-2026.jpg", areas: "馬鞍山、將軍澳、塔門、果洲群島等", center: [22.38, 114.33] },
+];
+
+export const HM20C_DOWNLOAD_SHEETS = [
+  { id: "2", name: "新田", en: "San Tin", center: [22.502, 114.078] },
+  { id: "3", name: "上水及粉嶺", en: "Sheung Shui & Fanling", center: [22.508, 114.138] },
+  { id: "4", name: "吉澳洲", en: "Kat O", center: [22.545, 114.305] },
+  { id: "5", name: "青山", en: "Castle Peak", center: [22.395, 113.973] },
+  { id: "6", name: "元朗", en: "Yuen Long", center: [22.445, 114.035] },
+  { id: "7", name: "沙田", en: "Sha Tin", center: [22.382, 114.19] },
+  { id: "8", name: "西貢半島", en: "Sai Kung Peninsula", center: [22.4, 114.3] },
+  { id: "9", name: "東涌", en: "Tung Chung", center: [22.289, 113.941] },
+  { id: "10", name: "銀礦灣", en: "Silver Mine Bay", center: [22.268, 114.001] },
+  { id: "11", name: "香港及九龍", en: "HK & Kowloon", center: [22.302, 114.172] },
+  { id: "12", name: "清水灣", en: "Clear Water Bay", center: [22.295, 114.289] },
+  { id: "13", name: "石壁", en: "Shek Pik", center: [22.227, 113.895] },
+  { id: "14", name: "長洲", en: "Cheung Chau", center: [22.209, 114.029] },
+  { id: "15", name: "香港南部及南丫島", en: "South & Lamma", center: [22.226, 114.145] },
+  { id: "16", name: "橫瀾島", en: "Waglan", center: [22.182, 114.303] },
+];
+
+export const IB20000_TILES = [
+  { id: "01", name: "新田東", en: "San Tin E" },
+  { id: "02", name: "上水", en: "Sheung Shui" },
+  { id: "03", name: "沙頭角", en: "Sha Tau Kok" },
+  { id: "04", name: "吉澳", en: "Kat O" },
+  { id: "05", name: "屯門西", en: "Tuen Mun W" },
+  { id: "06", name: "元朗", en: "Yuen Long" },
+  { id: "07", name: "大埔", en: "Tai Po" },
+  { id: "08", name: "西貢北", en: "Sai Kung N" },
+  { id: "09", name: "屯門東", en: "Tuen Mun E" },
+  { id: "10", name: "荃灣", en: "Tsuen Wan" },
+  { id: "11", name: "沙田", en: "Sha Tin" },
+  { id: "12", name: "西貢", en: "Sai Kung" },
+  { id: "13", name: "大嶼山北", en: "Lantau N" },
+  { id: "14", name: "青衣", en: "Tsing Yi" },
+  { id: "15", name: "九龍", en: "Kowloon" },
+  { id: "16", name: "清水灣", en: "Clear Water Bay" },
+  { id: "17", name: "大嶼山南", en: "Lantau S" },
+  { id: "18", name: "香港島", en: "HK Island" },
 ];
 
 export const COUNTRYSIDE_META = {
   official: "https://www.landsd.gov.hk/tc/survey-mapping/mapping/thematic-mapping.html#2",
   index: "https://www.landsd.gov.hk/images/en/mapping/paper-map/index/Index_Jul2026.jpg",
   hiking: "https://www.hiking.gov.hk/news",
+  purchase: "https://www.landsd.gov.hk/tc/survey-mapping/mapping/paper-map.html",
 };
 
 export const EHKG_META = {
@@ -153,4 +193,4 @@ export const FEATURE_IDEAS = [
   { id: "card", title: "參加者控制卡（打孔空格）", for: "城市", note: "另頁列印到達時間／答案空格，不用手機。" },
   { id: "master", title: "領袖答案圖", for: "城市", note: "同一張圖加坐標與正確路線，只給策劃者。" },
   { id: "multi", title: "A／B／C 多條路線", for: "城市", note: "同一底圖分難度，分色套印。" },
-  ];
+];

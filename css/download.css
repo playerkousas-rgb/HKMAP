@@ -77,6 +77,109 @@ body.page {
 .file b { display: block; font-size: 13px; }
 .file small { color: var(--muted); }
 
+/* 一格格像主頁 HM20C 圖幅 */
+.sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.sheet-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 8px 10px;
+  color: var(--ink);
+  text-decoration: none;
+  text-align: center;
+  min-height: 88px;
+  transition: all .15s ease;
+}
+.sheet-tile:hover {
+  border-color: var(--gold);
+  background: #fff8e6;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+}
+.sheet-tile b {
+  display: block;
+  font-size: 20px;
+  font-family: var(--display);
+  color: var(--forest);
+  line-height: 1.1;
+}
+.sheet-tile.ib b {
+  color: #2f6b52;
+}
+.sheet-tile .sheet-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+.sheet-tile small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  line-height: 1.2;
+}
+
+/* 郊遊圖一格格 */
+.countryside-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+.countryside-tile {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.countryside-tile:hover {
+  border-color: var(--gold);
+  box-shadow: 0 6px 18px rgba(0,0,0,.06);
+}
+.countryside-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 8px;
+}
+.countryside-head b {
+  font-family: var(--display);
+  font-size: 13px;
+  background: #2f6b52;
+  color: #fff;
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+.countryside-head .sheet-name {
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.countryside-head small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.countryside-body .file-grid {
+  grid-template-columns: 1fr;
+}
+
 .warn {
   background: #fff4d6;
   border-left: 4px solid var(--gold);

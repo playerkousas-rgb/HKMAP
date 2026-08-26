@@ -24,6 +24,7 @@
       </div>
       <div class="basemaps" role="tablist" aria-label="底圖">
         <button type="button" class="active" data-layer="hm20c">HM20C / iB20000</button>
+        <button type="button" data-layer="countryside">郊遊圖</button>
         <button type="button" data-layer="imagery">航空照片</button>
       </div>
       <div class="search">
@@ -160,7 +161,7 @@
       </section>
 
       <p class="notice">
-        © Scout System　底圖 © 香港特別行政區政府地政總署。
+        © Scout System　底圖 © 香港特別行政區政府地政總署，郊遊圖 © OpenTopoMap OSM。
         使用須遵守<a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">地政總署 Map API 條款</a>。
         紙本地圖版權仍屬政府，本系統不複製紙本圖面。
       </p>
@@ -248,6 +249,7 @@
       <div class="coord-readout" id="readout"></div>
       <aside class="credit">
         <strong>Map from Lands Department</strong><br />
+        郊遊圖 © OpenTopoMap OSM<br />
         Aerial Photograph from Lands Department<br />
         地形資料對應 iB20000（免費數碼地形圖）<br />
         © Scout System
@@ -258,7 +260,7 @@
   <div id="terms" class="modal" role="dialog" aria-labelledby="terms-title">
     <div class="dialog">
       <h3 id="terms-title">使用地政總署地圖 API</h3>
-      <p>Scout System 透過官方 <strong>LandsD Map API</strong> 顯示香港地形圖與航空照片，方便童軍設計城市定向。圖磚版權屬香港特區政府地政總署。</p>
+      <p>Scout System 透過官方 <strong>LandsD Map API</strong> 顯示香港地形圖與航空照片，另加 OpenTopoMap 作郊遊圖參考，方便童軍設計城市／野外定向。圖磚版權屬香港特區政府地政總署及 OSM。</p>
       <p>按照署方規定，地圖畫面已標示 Lands Department 版權聲明。請勿大量短時間呼叫 API。使用前請閱讀
         <a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">條款及知識產權告示</a>。
       </p>
@@ -272,17 +274,19 @@
 
   <div id="about" class="modal" role="dialog">
     <div class="dialog">
-      <h3>已連結的政府地圖</h3>
-      <p><strong>HM20C / iB20000</strong> — 紙本 HM20C 是 1:20 000 彩色地形圖。對應的電子產品是 <strong>iB20000 數碼地形圖</strong>，2026 年 2 月官方售價 <strong>免費</strong>。本畫面用官方
+      <h3>已連結的地圖</h3>
+      <p><strong>HM20C / iB20000</strong> — 紙本 HM20C 是 1:20 000 彩色地形圖。對應電子產品是 <strong>iB20000 數碼地形圖</strong>，2026 年 2 月官方售價 <strong>免費</strong>。本畫面用官方
         <a href="https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI" target="_blank" rel="noopener">Topographic Map API</a>
-        顯示同一套 i-系列資料（等高線、道路、建築、小徑）。</p>
+        顯示同一套 i-系列資料。</p>
+      <p><strong>郊遊圖</strong> — 以 <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>（OSM 等高線＋山徑）作郊野規劃底圖，突顯遠足徑，適合野外定向；官方郊區地圖紙本仍需到地政總署購買，此圖磚僅作策劃參考。</p>
+      <p><strong>航空照片</strong> — 地政總署航空照片 API。</p>
       <table class="compare">
-        <thead><tr><th></th><th>紙本 HM20C</th><th>iB20000</th><th>本系統底圖</th></tr></thead>
+        <thead><tr><th></th><th>HM20C</th><th>iB20000</th><th>郊遊圖</th><th>底圖</th></tr></thead>
         <tbody>
-          <tr><th>是甚麼</th><td>印刷彩色地圖 16 幅</td><td>數碼地形資料 18 幅</td><td>官方圖磚 API</td></tr>
-          <tr><th>價錢</th><td>紙圖另售</td><td>免費 HK$0</td><td>按 Map API 條款使用</td></tr>
-          <tr><th>格式</th><td>紙／沒有官方掃描 PDF</td><td>FGDB GML DWG DGN GeoTIFF</td><td>即時 XYZ PNG</td></tr>
-          <tr><th>適合</th><td>城市紙圖設計</td><td>QGIS、CAD、離線製圖</td><td>設計城市定向</td></tr>
+          <tr><th>是甚麼</th><td>印刷 16 幅</td><td>數碼 18 幅</td><td>OpenTopoMap</td><td>官方 API + OTM</td></tr>
+          <tr><th>價錢</th><td>紙圖另售</td><td>免費 HK$0</td><td>免費 CC-BY-SA</td><td>按條款</td></tr>
+          <tr><th>格式</th><td>紙／無掃描 PDF</td><td>FGDB GML GeoTIFF</td><td>XYZ PNG</td><td>即時 PNG</td></tr>
+          <tr><th>適合</th><td>城市紙圖</td><td>QGIS CAD</td><td>野外定向</td><td>城市＋郊野</td></tr>
         </tbody>
       </table>
       <p>下載 iB20000：
@@ -290,7 +294,7 @@
         <a href="https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637" target="_blank" rel="noopener">CSDI</a> ·
         <a href="https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf" target="_blank" rel="noopener">價目表</a>
       </p>
-      <p><strong>坐標</strong> — WGS84 經緯度，加上 HM20C／童軍慣用的 <strong>UTM 100 km 方格</strong>（zone 49Q：GE／HE；zone 50Q：JK／KK），即「KK 1234 5678」8 位方格，對照 HM20C 圖邊數字。</p>
+      <p><strong>坐標</strong> — WGS84 經緯度，加上 HM20C／童軍慣用的 <strong>UTM 100 km 方格</strong>（zone 49Q：GE／HE；zone 50Q：JK／KK），即「KK 1234 5678」8 位方格。</p>
       <div class="actions">
         <button class="solid" id="about-close" type="button">關閉</button>
       </div>
