@@ -5,10 +5,8 @@ import {
   COUNTRYSIDE_META,
   HM20C_DOWNLOAD_SHEETS,
   IB20000_TILES,
-  FEATURE_IDEAS,
   IB20000,
 } from "./catalog.js";
-import { HM20C_SHEETS } from "./hkgeo.js";
 
 function fileCard(f) {
   return `<a class="file" href="${f.href}" target="_blank" rel="noopener">
@@ -151,38 +149,10 @@ function renderCountryside(filter = "") {
     </section>`;
 }
 
-function renderPrint() {
-  return `
-    <section class="card">
-      <h2>用 Scout System 列印／匯出</h2>
-      <p>本系統定位是<strong>策劃者畫圖工具</strong>：在官方底圖上放 CP 圓圈，列印紙圖給參加者，不是手機遊戲。</p>
-      <ul>
-        <li><strong>列印地圖</strong> — 紙圖上有紫紅起點 △、檢查點 ○、終點 ◎</li>
-        <li><strong>檢查點說明表</strong> — 印在圖下方，參加者對照尋點</li>
-        <li><strong>匯出 JSON</strong> — 給其他策劃者繼續改圖</li>
-      </ul>
-      <p class="notice">列印底圖來自官方地形圖 API＋郊遊圖（OpenTopoMap），須保留「Map from Lands Department」及 OSM 來源。不是紙本 HM20C 複製品。</p>
-      <p><a class="solid" href="index.html" style="display:inline-block;text-decoration:none">返回設計地圖</a></p>
-    </section>`;
-}
-
-function renderIdeas() {
-  return `
-    <section class="card">
-      <h2>下一步：可以幫設計定向的功能</h2>
-      <p>地圖下載先做好。以下是建議加入的設計工具，你可告訴我優先做哪幾項。</p>
-      ${FEATURE_IDEAS.map(
-        (f) => `<div class="idea"><div class="for">${f.for}</div><div><strong>${f.title}</strong><div class="notice">${f.note}</div></div></div>`
-      ).join("")}
-    </section>`;
-}
-
 const panels = {
   hm20c: (f) => renderIb(f || ""),
   ehkg: (f) => renderEhkg(f || ""),
   countryside: (f) => renderCountryside(f || ""),
-  print: renderPrint,
-  ideas: renderIdeas,
 };
 
 const root = document.getElementById("panel");
