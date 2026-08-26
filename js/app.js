@@ -33,6 +33,8 @@ import {
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
 const SCREEN_MM_PX = 96 / 25.4;
+let lastScreenScale = SCREEN_MM_PX;
+let pageStyleEl = null;
 
 const state = {
   layer: "hm20c",
@@ -43,7 +45,8 @@ const state = {
   labelsOn: true,
   linesOn: true,
   leaderOn: false,
-  previewMode: "fit",
+  previewMode: "actual",
+  screenWidthCm: 0,
   course: emptyCourse(),
   selectedId: null,
   measure: [],
@@ -436,6 +439,14 @@ function orientationLabel(dir, en = false) {
   return dir === "portrait" ? "直向" : "橫向";
 }
 
+/** 校準後：螢幕每 1mm 對應幾多 CSS px（screen.width ÷ 螢幕實際寬度）。 */
+function calibratedPxPerMm() {
+  const cm = Number(state.screenWidthCm);
+  if (!cm || cm <= 0) return null;
+  const w = (window.screen && window.screen.width) || window.innerWidth;
+  return w / (cm * 10);
+}
+
 function applyPaperLayout() {
   const paper = state.course.paperSize || "A4";
   const orientation = currentOrientation();
@@ -445,7 +456,10 @@ function applyPaperLayout() {
   const hostH = host?.clientHeight || window.innerHeight || 900;
   const preview = currentPreviewMode();
   const fitScale = Math.min((hostW - 72) / g.sheetW, (hostH - 72) / g.sheetH, 6);
-  const screenScale = preview === "fit" ? Math.max(0.7, fitScale) : SCREEN_MM_PX;
+  const calibrated = calibratedPxPerMm();
+  const screenScale =
+    preview === "fit" ? Math.max(0.7, fitScale) : calibrated || SCREEN_MM_PX;
+  lastScreenScale = screenScale;
   const root = document.body.style;
   const setPx = (name, mm) => root.setProperty(name, `${(mm * screenScale).toFixed(2)}px`);
   const setMm = (name, mm) => root.setProperty(name, `${mm}mm`);
@@ -469,11 +483,24 @@ function applyPaperLayout() {
   setMm("--pad-y-print", g.padY);
 }
 
+function applyPageRule() {
+  // 用普通 @page（而非命名 page）：舊版 Chrome／Safari 不支援命名頁，
+  // 只認得「@page { size: ... }」。JS 按目前紙張／方向即時更新，列印預覽就會是正確頁大小。
+  if (!pageStyleEl) {
+    pageStyleEl = document.createElement("style");
+    pageStyleEl.id = "dyn-page";
+    document.head.appendChild(pageStyleEl);
+  }
+  const g = pageGeometryMm(state.course.paperSize || "A4", currentOrientation());
+  pageStyleEl.textContent = `@page { size: ${g.sheetW}mm ${g.sheetH}mm; margin: 0; }`;
+}
+
 function applyPaper() {
   const paper = state.course.paperSize || "A4";
   document.body.dataset.paper = paper;
   document.body.dataset.orientation = currentOrientation();
   document.body.dataset.preview = currentPreviewMode();
+  applyPageRule();
   applyPaperLayout();
   map.invalidateSize();
   renderGrid();
@@ -488,10 +515,24 @@ function updatePaperInfo() {
   const locked = !!state.course.scaleLocked;
   const s = locked ? currentScaleLock() : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
   const a = paperAreaMeters(paper, s, orientation);
+  const g = pageGeometryMm(paper, orientation);
+  const calibrated = calibratedPxPerMm();
+  const shown = lastScreenScale || SCREEN_MM_PX;
+  let screenNote;
+  if (currentPreviewMode() === "actual") {
+    screenNote = calibrated
+      ? `螢幕顯示：<strong>真實 mm</strong>（已按螢幕寬 ${Number(state.screenWidthCm)} cm 校準，${paper}＝${g.sheetW}×${g.sheetH} mm）。`
+      : `螢幕顯示：實際 mm，按 96 dpi 假設（高密度／已縮放螢幕會比真實 ${paper} 細；填「螢幕寬度」即可校準）。`;
+  } else if (calibrated) {
+    screenNote = `螢幕顯示：約為真實 ${paper} 嘅 <strong>${Math.round((shown / calibrated) * 100)}%</strong>（預覽自動貼合視窗）。`;
+  } else {
+    screenNote = `螢幕顯示：${Math.round((shown / SCREEN_MM_PX) * 100)}%（96 dpi 預覽，自動貼合視窗，唔係真實大小）。`;
+  }
   el.innerHTML =
     `白紙＝列印範圍：<strong>${paper} ${orientationLabel(orientation)}</strong> @ <strong>${scaleLabel(s)}</strong>` +
     (locked ? "（已鎖定）" : "（未鎖定，隨畫面縮放）") +
     `，紙面覆蓋約 <strong>${fmtLen(a.w)} × ${fmtLen(a.h)}</strong>。` +
+    screenNote +
     `頁邊距已設為 <strong>0 mm</strong>（實際可印到幾貼邊，視瀏覽器／打印機支援的無邊框列印而定）。`;
 }
 
@@ -1027,7 +1068,7 @@ function updateReadout(ll) {
 }
 
 // 城市定向常用比例；最後一項仍保留 HM20C 常用的 1:20 000。
-const SCALE_PRESETS = [2500, 4000, 5000, 7500, 10000, 15000, 20000];
+const SCALE_PRESETS = [2500, 4000, 5000, 7500, 10000, 15000, 20000, 25000];
 const MIN_CUSTOM_SCALE = 500;
 const MAX_CUSTOM_SCALE = 100000;
 
@@ -1262,6 +1303,7 @@ function renderSidebar() {
   document.getElementById("paper-size").value = state.course.paperSize || "A4";
   document.getElementById("paper-orientation").value = currentOrientation();
   document.getElementById("screen-preview").value = currentPreviewMode();
+  document.getElementById("screen-calib").value = state.screenWidthCm || "";
   const stats = courseStats();
   document.getElementById("stat-dist").textContent =
     stats.dist >= 1000 ? `${(stats.dist / 1000).toFixed(2)} km` : `${Math.round(stats.dist)} m`;
@@ -1366,6 +1408,7 @@ function persist() {
   all.current = state.course;
   all.layer = state.layer;
   all.previewMode = state.previewMode;
+  all.screenWidthCm = state.screenWidthCm;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
 }
 
@@ -1551,9 +1594,16 @@ function bind() {
     persist();
     toast(
       state.previewMode === "fit"
-        ? t("已切換到螢幕預覽模式", "Screen preview on")
-        : t("已切換到實際 mm 顯示", "Actual mm view")
+        ? t("已切換到螢幕預覽模式（自動貼合視窗）", "Screen preview on")
+        : t("已切換到實際 mm 顯示（填螢幕寬度＝物理真實大小）", "Actual mm view — calibrate screen width for physical size")
     );
+  });
+  const calib = document.getElementById("screen-calib");
+  calib.addEventListener("input", () => {
+    const v = Number(calib.value);
+    state.screenWidthCm = v > 0 ? Math.min(200, v) : 0;
+    applyPaper();
+    persist();
   });
   document.getElementById("opt-lines").addEventListener("change", (event) => {
     state.linesOn = event.target.checked;
@@ -1811,6 +1861,9 @@ function boot() {
   if (savedAll.layer) state.layer = savedAll.layer === "imagery" ? "imagery" : "hm20c";
   if (savedAll.previewMode === "actual" || savedAll.previewMode === "fit") {
     state.previewMode = savedAll.previewMode;
+  }
+  if (typeof savedAll.screenWidthCm === "number" && savedAll.screenWidthCm > 0) {
+    state.screenWidthCm = savedAll.screenWidthCm;
   }
   if (saved && Array.isArray(saved.controls)) state.course = normalizeCourse(saved);
   state.course.orientation = normalizeOrientation(state.course.orientation);

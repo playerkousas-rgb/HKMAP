@@ -357,7 +357,7 @@ button, input, select, textarea { font-family: inherit; }
 /* 地圖 = 紙面圖框（第一頁幾乎滿版） */
 #map {
   width: var(--map-w-screen, 1123px);
-  height: var(--map-h-screen, 744px);
+  height: var(--map-h-screen, 714px);
   border: 1px solid #222;
   background: #cfd6c8;
   flex: 0 0 auto;
@@ -926,7 +926,7 @@ body[data-paper="A5"][data-orientation="portrait"] { page: pageA5P; }
   }
   #map {
     width: var(--map-w-print, 297mm);
-    height: var(--map-h-print, 197mm);
+    height: var(--map-h-print, 189mm);
   }
   .sheet-foot {
     min-height: var(--foot-h-print, 5mm);
