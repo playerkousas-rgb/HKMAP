@@ -123,6 +123,20 @@ export const EHKG_GROUPS = [
   },
 ];
 
+export const COUNTRYSIDE_MAPS = [
+  { code: "CM-HK", name: "香港島及鄰近島嶼", edition: "第十一版（2025）", size: "610 × 880 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-HKIs_n_NeighbourIs_MAP-2025_11.jpg", areas: "香港島、南丫島、東龍洲、蒲台等" },
+  { code: "CM-LT", name: "大嶼山及鄰近島嶼", edition: "第十一版（2025）", size: "880 × 610 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-LantauIs_n_NeighbourIs_MAP-2025_11.jpg", areas: "大嶼山、長洲、坪洲、索罟群島、龍鼓洲、沙洲等" },
+  { code: "CM-NW", name: "新界西北部", edition: "第十二版（2023）", size: "610 × 880 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-NTNW_MAP-2023_12.jpg", areas: "元朗、屯門、大欖涌、荃灣、青衣等" },
+  { code: "CM-NE", name: "新界東北及中部", edition: "第十版（2023）", size: "610 × 880 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/CM-NTNE_n_Central_MAP.jpg", areas: "沙田、大埔、粉嶺、沙頭角、吉澳、平洲等" },
+  { code: "CM-SK", name: "西貢及清水灣", edition: "第十七版（2026）", size: "880 × 610 mm", href: "https://www.landsd.gov.hk/images/en/mapping/paper-map/lic/cm-sk_n_cwb_map-2026.jpg", areas: "馬鞍山、將軍澳、塔門、果洲群島等" },
+];
+
+export const COUNTRYSIDE_META = {
+  official: "https://www.landsd.gov.hk/tc/survey-mapping/mapping/thematic-mapping.html#2",
+  index: "https://www.landsd.gov.hk/images/en/mapping/paper-map/index/Index_Jul2026.jpg",
+  hiking: "https://www.hiking.gov.hk/news",
+};
+
 export const EHKG_META = {
   zip: {
     label: "e香港街 2026 年 7 月版（完整包 538 MB）",
