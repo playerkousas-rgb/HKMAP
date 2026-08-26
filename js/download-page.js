@@ -1,6 +1,8 @@
 import {
   EHKG_GROUPS,
   EHKG_META,
+  COUNTRYSIDE_MAPS,
+  COUNTRYSIDE_META,
   FEATURE_IDEAS,
   IB20000,
 } from "./catalog.js";
@@ -52,6 +54,21 @@ function renderEhkg(filter = "") {
         (g) => `<section class="card"><h2>${g.name}</h2><div class="file-grid">${g.files.map(fileCard).join("")}</div></section>`
       )
       .join("") || `<section class="card"><p>沒有符合「${filter}」的圖幅。</p></section>`}`;
+}
+
+function renderCountryside() {
+  return `
+    <section class="card">
+      <h2>郊區地圖（官方地圖預覽）</h2>
+      <p>你講得啱：呢套郊遊圖之前應該係清理「野外定向」資料時一齊刪咗。補番五幅官方郊區地圖，顯示郊外小徑，城市定向去到郊野公園、郊區公園或大嶼山時都可以用。</p>
+      <p class="notice">以下連結係地政總署官方高清彩色地圖預覽（JPG），原產品係防水雙面摺本；請保留官方來源及版權告示。需要遠足路線最新封閉消息，請查看漁護署 hiking.gov.hk。</p>
+      <div class="file-grid">
+        <a class="file" href="${COUNTRYSIDE_META.index}" target="_blank" rel="noopener"><b>郊區地圖索引圖</b><small>官方索引（2026）</small></a>
+        <a class="file" href="${COUNTRYSIDE_META.official}" target="_blank" rel="noopener"><b>地政總署官方頁</b><small>地圖資料及各版本</small></a>
+        <a class="file" href="${COUNTRYSIDE_META.hiking}" target="_blank" rel="noopener"><b>遠足徑／封閉消息</b><small>hiking.gov.hk　出發前查看</small></a>
+      </div>
+    </section>
+    ${COUNTRYSIDE_MAPS.map((m) => `<section class="card"><h2>${m.name}</h2><p>${m.edition}　·　圖幅尺寸 ${m.size}<br /><span class="notice">包括：${m.areas}</span></p><a class="file" href="${m.href}" target="_blank" rel="noopener"><b>開啟高清郊區地圖</b><small>${m.code}　·　地政總署官方 JPG 預覽</small></a></section>`).join("")}`;
 }
 
 function renderPrint() {
