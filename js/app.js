@@ -1,15 +1,10 @@
 import {
-  COUNTRYSIDE_SHEETS,
-  DATASETS,
   GAZETTEER,
   HK_BOUNDS,
   HK_CENTER,
   HM20C_SHEETS,
   MAG_DECLINATION_WEST,
-  csdiExportLayer,
   formatDeg,
-  frameBounds,
-  frameValid,
   fromUtm,
   gridBearing,
   gridRefs,
@@ -22,22 +17,18 @@ import {
   planarDistance,
   scaleDenominator,
   tileOptions,
-  toUtm,
   toUtmInZone,
   utmZoneForLng,
   zoomForScale,
 } from "./hkgeo.js";
 import { drawOverprint, orderedControls as orderControls } from "./overprint.js";
-import { clueTableHTML, FEATURE, APPEARANCE, POSITION } from "./iof.js";
 import {
-  RUNNABILITY,
-  POINT_SYM,
-  LINE_SYM,
   URBAN_RUN,
   URBAN_POINT,
   URBAN_LINE,
   annotationLayer,
-} from "./isom.js";
+  isUrbanAnnotation,
+} from "./urban.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
@@ -48,7 +39,7 @@ const state = {
   tool: "pan",
   lang: "zh",
   gridOn: true,
-  cdOn: true,
+  gridLabelsOn: true,
   labelsOn: true,
   linesOn: true,
   leaderOn: false,
@@ -70,7 +61,7 @@ function emptyCourse() {
     playMode: "linear",
     paperSize: "A4",
     orientation: "landscape",
-    scaleLock: 20000,
+    scaleLock: 5000,
     scaleLocked: false,
     created: new Date().toISOString(),
     meet: "",
@@ -81,9 +72,35 @@ function emptyCourse() {
   };
 }
 
-function walkMinutes(meters, countryside) {
-  const mPerMin = countryside ? 60 : 80;
-  return Math.max(1, Math.round(meters / mPerMin));
+function walkMinutes(meters) {
+  return Math.max(1, Math.round(meters / 80));
+}
+
+/** 還原／匯入舊檔時固定轉為城市路線，並移除不再支援的舊標記。 */
+function normalizeCourse(data) {
+  const source = data && typeof data === "object" ? data : {};
+  const course = { ...emptyCourse(), ...source, type: "urban", system: "Scout System" };
+  const scale = Number(course.scaleLock);
+  course.scaleLock = Number.isFinite(scale) && scale >= 500 && scale <= 100000 ? Math.round(scale) : 5000;
+  delete course.frame;
+  course.controls = Array.isArray(source.controls)
+    ? source.controls.map((control) => {
+        const clean = { ...control };
+        delete clean.cd;
+        return clean;
+      })
+    : [];
+  course.annotations = Array.isArray(source.annotations)
+    ? source.annotations
+        .map((annotation) => {
+          const clean = { ...annotation };
+          // 舊版城市 palette 曾把獨樹命名為 distinctTreeU，匯入時保留這個城市標記。
+          if (clean.sym === "distinctTreeU") clean.sym = "distinctTree";
+          return clean;
+        })
+        .filter(isUrbanAnnotation)
+    : [];
+  return course;
 }
 
 function uid() {
@@ -279,7 +296,6 @@ function startFresh({ wipe = false, reload = false } = {}) {
   updateHistoryButtons();
   map.setView(HK_CENTER, 13);
   hideRestore();
-  document.getElementById("disc-select").classList.add("open");
   hist.ignore = false;
 }
 
@@ -363,7 +379,7 @@ const map = L.map("map", {
   zoom: 13,
   minZoom: 10,
   maxZoom: 20,
-  zoomSnap: 0, // 允許小數縮放，才能精確落在 1:5 000–1:20 000（LOCK 比例用）
+  zoomSnap: 0, // 允許小數縮放，讓自訂比例也能精確對齊（LOCK 比例用）
   zoomControl: true,
   maxBounds: HK_BOUNDS,
   maxBoundsViscosity: 0.7,
@@ -373,18 +389,8 @@ const labels = L.tileLayer(landsdUrl("label", "tc"), tileOptions({ pane: "overla
 const basemap = L.tileLayer(landsdUrl("basemap"), tileOptions({ minZoom: 10 }));
 const imagery = L.tileLayer(landsdUrl("imagery"), tileOptions({ minZoom: 10 }));
 
-map.createPane("csdiParks");
-map.getPane("csdiParks").style.zIndex = 350;
-map.createPane("csdiTrails");
-map.getPane("csdiTrails").style.zIndex = 360;
-map.createPane("csdiPosts");
-map.getPane("csdiPosts").style.zIndex = 370;
 map.createPane("ann");
 map.getPane("ann").style.zIndex = 390;
-
-const parks = csdiExportLayer(DATASETS.parks, "csdiParks");
-const trails = csdiExportLayer(DATASETS.trails, "csdiTrails");
-const posts = csdiExportLayer(DATASETS.posts, "csdiPosts");
 
 const courseLayer = L.layerGroup().addTo(map);
 const measureLayer = L.layerGroup().addTo(map);
@@ -393,57 +399,24 @@ const annLayer = L.layerGroup().addTo(map);
 const annDraftLayer = L.layerGroup().addTo(map);
 
 function applyBasemap() {
-  [basemap, imagery, parks, trails, posts].forEach((l) => {
+  [basemap, imagery].forEach((l) => {
     if (map.hasLayer(l)) map.removeLayer(l);
   });
-  if (state.layer === "imagery") {
-    imagery.addTo(map);
-  } else {
-    basemap.addTo(map);
-  }
-  if (state.layer === "countryside") {
-    parks.addTo(map);
-    trails.addTo(map);
-    posts.addTo(map);
-  }
+  if (state.layer === "imagery") imagery.addTo(map);
+  else basemap.addTo(map);
   if (state.labelsOn) labels.addTo(map);
   else if (map.hasLayer(labels)) map.removeLayer(labels);
 
   document.querySelectorAll(".basemaps button").forEach((b) => {
     b.classList.toggle("active", b.dataset.layer === state.layer);
   });
-  document.getElementById("sheet-hm20c").hidden = state.layer === "countryside";
-  document.getElementById("sheet-cm").hidden = state.layer !== "countryside";
   renderGrid();
 }
 
-/** 賽種分開:野外定向顯示全部定向工具;城市定向只保留原本簡潔工具。 */
-function applyDiscipline() {
-  const forest = state.course.type !== "urban";
-  document.body.classList.toggle("disc-forest", forest);
-  document.body.classList.toggle("disc-urban", !forest);
-}
-
-/** 開始視窗揀賽種。 */
-function chooseDiscipline(type) {
-  remember();
-  state.course.type = type;
-  const sel = document.getElementById("course-type");
-  if (sel) sel.value = type;
-  if (!discScales().includes(Number(state.course.scaleLock)))
-    state.course.scaleLock = currentScaleLock();
-  applyDiscipline();
-  syncScaleSelect();
-  document.getElementById("disc-select").classList.remove("open");
-  renderSidebar();
-  persist();
-  toast(type === "urban" ? "城市定向" : "野外定向");
-}
-
 function setLayer(id) {
-  if (id !== state.layer) remember();
-  state.layer = id;
-  if (id === "countryside") state.course.type = "countryside";
+  const layer = id === "imagery" ? "imagery" : "hm20c";
+  if (layer !== state.layer) remember();
+  state.layer = layer;
   applyBasemap();
   renderSheetInfo();
   persist();
@@ -485,7 +458,6 @@ function applyPaperLayout() {
   setPx("--desc-head-h-screen", g.descHeadH);
   setPx("--pad-x-screen", g.padX);
   setPx("--pad-y-screen", g.padY);
-  setPx("--cd-cell-screen", 5);
   setMm("--sheet-w-print", g.sheetW);
   setMm("--sheet-h-print", g.sheetH);
   setMm("--map-w-print", g.mapW);
@@ -495,7 +467,6 @@ function applyPaperLayout() {
   setMm("--desc-head-h-print", g.descHeadH);
   setMm("--pad-x-print", g.padX);
   setMm("--pad-y-print", g.padY);
-  setMm("--cd-cell-print", 5);
 }
 
 function applyPaper() {
@@ -505,6 +476,7 @@ function applyPaper() {
   document.body.dataset.preview = currentPreviewMode();
   applyPaperLayout();
   map.invalidateSize();
+  renderGrid();
   updatePaperInfo();
 }
 
@@ -527,7 +499,7 @@ function fmtLen(m) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
-/* ---------- HM20C / UTM 1 km 方格網（zone 49／50，跨 114° 連續）---------- */
+/* ---------- UTM 方格網與方格數字 ---------- */
 function renderGrid() {
   gridLayer.clearLayers();
   if (!state.gridOn) return;
@@ -540,7 +512,7 @@ function renderGrid() {
     opacity: major ? 0.45 : 0.28,
     interactive: false,
   };
-  // 畫面涵蓋哪些 UTM zone（114° 以西 49，以東 50）
+  // 香港以 114° 為界，分別用 UTM zone 49／50 繪製，避免接邊錯位。
   const zones = new Set();
   [
     [b.getSouth(), b.getWest()],
@@ -548,16 +520,14 @@ function renderGrid() {
     [b.getNorth(), b.getWest()],
     [b.getNorth(), b.getEast()],
     [b.getCenter().lat, b.getCenter().lng],
-  ].forEach(([la, ln]) => zones.add(utmZoneForLng(ln)));
+  ].forEach(([lat, lng]) => zones.add(utmZoneForLng(lng)));
   zones.forEach((zone) => drawZoneGrid(zone, b, step, style, major));
 }
 
-/** 繪製單一 zone 的 UTM 方格，並按經度裁剪到該 zone 一側（避免跨 114° 重疊／錯位）。 */
+/** 繪製單一 UTM zone 的方格，並按經度裁剪到該 zone 一側。 */
 function drawZoneGrid(zone, b, step, style, major) {
-  // 該 zone 的經度裁剪窗（留少許重疊，縫合 114° 接邊）
   const lngW = zone === 49 ? -200 : 113.999;
   const lngE = zone === 49 ? 114.001 : 200;
-  // 四角投影到本 zone，取東距／北距範圍
   const corners = [
     [b.getSouth(), b.getWest()],
     [b.getSouth(), b.getEast()],
@@ -568,8 +538,8 @@ function drawZoneGrid(zone, b, step, style, major) {
   let eMax = -Infinity;
   let nMin = Infinity;
   let nMax = -Infinity;
-  for (const [la, ln] of corners) {
-    const p = toUtmInZone(la, ln, zone);
+  for (const [lat, lng] of corners) {
+    const p = toUtmInZone(lat, lng, zone);
     eMin = Math.min(eMin, p.e);
     eMax = Math.max(eMax, p.e);
     nMin = Math.min(nMin, p.n);
@@ -580,40 +550,55 @@ function drawZoneGrid(zone, b, step, style, major) {
   const e1 = Math.ceil((eMax + pad) / step) * step;
   const n0 = Math.floor((nMin - pad) / step) * step;
   const n1 = Math.ceil((nMax + pad) / step) * step;
-  const samples = 12;
-  const maxLines = 80;
-  const eastBase = zone === 49 ? 700000 : 100000;
-
+  const samples = 16;
+  const maxLines = 120;
+  const zoneWest = Math.max(b.getWest(), zone === 49 ? -180 : 114.001);
+  const zoneEast = Math.min(b.getEast(), zone === 49 ? 113.999 : 180);
+  const labelLng = zoneWest < zoneEast ? (zoneWest + zoneEast) / 2 : zone === 49 ? 113.999 : 114.001;
+  const labelEasting = toUtmInZone(b.getCenter().lat, labelLng, zone).e;
   let count = 0;
-  // 垂直線（固定東距 E，北距 n0→n1）
+
+  // 垂直線（固定東距 E，北距 n0→n1）。
   for (let e = e0; e <= e1 && count < maxLines; e += step, count++) {
     drawClippedLine(zone, lngW, lngE, samples, true, e, n0, n1, style);
-    if (major && map.getZoom() >= 12) {
-      const km = Math.floor((((e - eastBase) % 100000) + 100000) % 100000 / 1000);
-      labelLineAt(zone, lngW, lngE, e, n1, String(km).padStart(2, "0"), style.color);
+    if (shouldLabelGridLine(e, step, major)) {
+      labelLineAt(zone, lngW, lngE, e, nMax, "east", step, style.color);
     }
   }
   count = 0;
-  // 水平線（固定北距 N，東距 e0→e1）
+  // 水平線（固定北距 N，東距 e0→e1）。
   for (let n = n0; n <= n1 && count < maxLines; n += step, count++) {
     drawClippedLine(zone, lngW, lngE, samples, false, n, e0, e1, style);
-    if (major && map.getZoom() >= 12) {
-      const km = Math.floor(((n % 100000) + 100000) % 100000 / 1000);
-      labelLineAt(zone, lngW, lngE, e0, n, String(km).padStart(2, "0"), style.color);
+    if (shouldLabelGridLine(n, step, major)) {
+      labelLineAt(zone, lngW, lngE, labelEasting, n, "north", step, style.color);
     }
   }
 }
 
-/** 沿一條方格線取樣，按 zone 經度裁剪後繪出（可能切成多段）。
- *  vertical=true：固定東距 fixedCoord，另一軸由 v0→v1；false：固定北距。 */
+/** 1 km 網格每條線標示；放大到 100 m 網格時每 1 km 標示一次，避免文字重疊。 */
+function shouldLabelGridLine(coord, step, major) {
+  if (!state.gridLabelsOn) return false;
+  if (major) return true;
+  const inSquare = ((coord % 100000) + 100000) % 100000;
+  return Math.abs(inSquare % 1000) < 1;
+}
+
+function gridLineNumber(coord, axis, step) {
+  const inSquare = ((coord % 100000) + 100000) % 100000;
+  const units = Math.round(inSquare / step);
+  const width = step >= 1000 ? 2 : 3;
+  return String(units).padStart(width, "0");
+}
+
+/** 沿一條方格線取樣，按 zone 經度裁剪後繪出（可能切成多段）。 */
 function drawClippedLine(zone, lngW, lngE, samples, vertical, fixedCoord, v0, v1, style) {
   const segs = [];
   let seg = [];
   for (let i = 0; i <= samples; i++) {
     const t = i / samples;
-    const E = vertical ? fixedCoord : v0 + (v1 - v0) * t;
-    const N = vertical ? v0 + (v1 - v0) * t : fixedCoord;
-    const ll = fromUtm(E, N, zone);
+    const easting = vertical ? fixedCoord : v0 + (v1 - v0) * t;
+    const northing = vertical ? v0 + (v1 - v0) * t : fixedCoord;
+    const ll = fromUtm(easting, northing, zone);
     if (ll.lng >= lngW && ll.lng <= lngE) {
       seg.push([ll.lat, ll.lng]);
     } else if (seg.length >= 2) {
@@ -624,18 +609,26 @@ function drawClippedLine(zone, lngW, lngE, samples, vertical, fixedCoord, v0, v1
     }
   }
   if (seg.length >= 2) segs.push(seg);
-  for (const s of segs) L.polyline(s, style).addTo(gridLayer);
+  for (const segment of segs) L.polyline(segment, style).addTo(gridLayer);
 }
 
-/** 在方格線靠近畫面頂端／左緣處放一個小標籤（方格內 km，2 位）。 */
-function labelLineAt(zone, lngW, lngE, e, n, text, color) {
-  const ll = fromUtm(e, n, zone);
+/** 在方格線靠近地圖邊緣放置 E／N 數字，讓成員可直接讀出方格內東距及北距。 */
+function labelLineAt(zone, lngW, lngE, fixedCoord, otherCoord, axis, step, color) {
+  const ll = fromUtm(fixedCoord, otherCoord, zone);
+  if (!Number.isFinite(ll.lat) || !Number.isFinite(ll.lng)) return;
   if (ll.lng < lngW || ll.lng > lngE) return;
+  const coordinate = axis === "east" ? fixedCoord : otherCoord;
+  const number = gridLineNumber(coordinate, axis, step);
+  const label = axis === "east" ? `E ${number}` : `N ${number}`;
+  const iconSize = axis === "east" ? [42, 17] : [42, 17];
   L.marker([ll.lat, ll.lng], {
     interactive: false,
+    zIndexOffset: 100,
     icon: L.divIcon({
-      className: "grid-lab",
-      html: `<span style="color:${color};font:700 10px/1 ui-monospace,monospace;opacity:.75">${text}</span>`,
+      className: `grid-label grid-label-${axis}`,
+      html: `<span style="color:${color}" title="${label}">${label}</span>`,
+      iconSize,
+      iconAnchor: axis === "east" ? [21, 0] : [0, 9],
     }),
   }).addTo(gridLayer);
 }
@@ -754,7 +747,7 @@ function renderMeasure() {
     .addTo(measureLayer);
 }
 
-/* ---------- 地圖標記 · 微地形／可跑性(ISOM)---------- */
+/* ---------- 城市地圖標記 ---------- */
 let annDrag = null; // 拖移面/線時的全域狀態
 
 function annPointScale() {
@@ -820,25 +813,21 @@ function enablePathDrag(layer, ann) {
 function renderAnnPalette() {
   const box = document.getElementById("ann-palette");
   if (!box) return;
-  const forest = state.course.type !== "urban";
-  const RUN = forest ? RUNNABILITY : URBAN_RUN;
-  const PT = forest ? POINT_SYM : URBAN_POINT;
-  const LN = forest ? LINE_SYM : URBAN_LINE;
-  const fillLbl = forest ? "可跑性(面)" : "面狀(建築/鋪面)";
-  const ptLbl = forest ? "點狀微地形" : "點狀特徵";
-  const lnLbl = forest ? "線狀特徵" : "線狀(牆/圍欄/樓梯)";
-  const tag = forest ? "ISOM · 野外定向" : "ISSprOM · 城市定向";
+  const fillLbl = "面狀特徵（建築／鋪面）";
+  const ptLbl = "點狀特徵";
+  const lnLbl = "線狀特徵（牆／圍欄／樓梯）";
+  const tag = "城市定向";
   const sw = (bg, border) =>
     `<span class="ann-sw" style="background:${bg}${border ? ";border:1px solid " + border : ""}"></span>`;
   const isActive = (mode, id) =>
     state.annMode === mode && state.annSym === id ? " active" : "";
-  const runBtns = Object.entries(RUN)
+  const runBtns = Object.entries(URBAN_RUN)
     .map(([id, v]) => `<button class="ann-btn${isActive("fill", id)}" data-amode="fill" data-asym="${id}">${sw(v.color, v.edge || "#00000040")}${v.t}</button>`)
     .join("");
-  const ptBtns = Object.entries(PT)
+  const ptBtns = Object.entries(URBAN_POINT)
     .map(([id, v]) => `<button class="ann-btn${isActive("point", id)}" data-amode="point" data-asym="${id}">${sw(v.shape === "tree" ? "#2E7D32" : v.color, v.color)}${v.t}</button>`)
     .join("");
-  const lnBtns = Object.entries(LN)
+  const lnBtns = Object.entries(URBAN_LINE)
     .map(([id, v]) => `<button class="ann-btn${isActive("line", id)}" data-amode="line" data-asym="${id}">${sw("transparent", v.color)}${v.t}</button>`)
     .join("");
   box.innerHTML =
@@ -1037,18 +1026,18 @@ function updateReadout(ll) {
   `;
 }
 
-const SCALE_PRESETS = [4000, 5000, 10000, 15000, 20000];
+// 城市定向常用比例；最後一項仍保留 HM20C 常用的 1:20 000。
+const SCALE_PRESETS = [2500, 4000, 5000, 7500, 10000, 15000, 20000];
+const MIN_CUSTOM_SCALE = 500;
+const MAX_CUSTOM_SCALE = 100000;
 
-/** 各賽種的標準比例(不混用):野外 ISOM 1:10 000/15 000;城市 ISSprOM 1:4 000/5 000。 */
-function discScales() {
-  return state.course.type === "urban" ? [4000, 5000] : [10000, 15000];
+function validScale(value) {
+  return Number.isFinite(value) && value >= MIN_CUSTOM_SCALE && value <= MAX_CUSTOM_SCALE;
 }
 
 function currentScaleLock() {
-  const scales = discScales();
   const s = Number(state.course.scaleLock);
-  if (scales.includes(s)) return s;
-  return state.course.type === "urban" ? 5000 : 15000;
+  return validScale(s) ? Math.round(s) : 5000;
 }
 
 function formatScale(n) {
@@ -1061,11 +1050,42 @@ function scaleLabel(s) {
 
 function syncScaleSelect() {
   const sel = document.getElementById("scale-select");
-  const scales = discScales();
+  if (!sel) return;
+  const current = currentScaleLock();
+  const scales = SCALE_PRESETS.includes(current)
+    ? SCALE_PRESETS
+    : [...SCALE_PRESETS, current].sort((a, b) => a - b);
   sel.innerHTML = scales
-    .map((s) => `<option value="${s}">1 : ${s.toLocaleString("en-HK")}</option>`)
+    .map((s) => {
+      const custom = !SCALE_PRESETS.includes(s) ? "（自訂）" : "";
+      return `<option value="${s}">${scaleLabel(s)}${custom}</option>`;
+    })
     .join("");
-  sel.value = String(currentScaleLock());
+  sel.value = String(current);
+  const customInput = document.getElementById("scale-custom");
+  if (customInput && document.activeElement !== customInput)
+    customInput.value = SCALE_PRESETS.includes(current) ? "" : String(current);
+}
+
+function applyScale(value) {
+  const scale = Math.round(Number(value));
+  if (!validScale(scale)) {
+    toast(t(`請輸入 ${MIN_CUSTOM_SCALE.toLocaleString("en-HK")} 至 ${MAX_CUSTOM_SCALE.toLocaleString("en-HK")} 的比例分母`, `Enter a denominator from ${MIN_CUSTOM_SCALE.toLocaleString("en-HK")} to ${MAX_CUSTOM_SCALE.toLocaleString("en-HK")}`));
+    return false;
+  }
+  remember();
+  state.course.scaleLock = scale;
+  map.setZoom(zoomForScale(map.getCenter().lat, scale), { animate: false });
+  syncScaleSelect();
+  updatePaperInfo();
+  renderSheetInfo();
+  toast(
+    state.course.scaleLocked
+      ? t(`已鎖定 ${scaleLabel(scale)}（縮放停用）`, `Locked at ${scaleLabel(scale)}`)
+      : t(`已對齊 ${scaleLabel(scale)}`, `Aligned to ${scaleLabel(scale)}`)
+  );
+  persist();
+  return true;
 }
 
 function setZoomControls(on) {
@@ -1224,28 +1244,20 @@ function renderSheets() {
   hm.innerHTML = HM20C_SHEETS.filter((s) => s.id !== "1")
     .map(
       (s) =>
-        `<button class="sheet-btn" data-series="hm20c" data-id="${s.id}"><b>${s.id}</b>${s.name}</button>`
+        `<button class="sheet-btn" data-id="${s.id}"><b>${s.id}</b>${s.name}</button>`
     )
     .join("");
-  const cm = document.getElementById("cm-grid");
-  cm.innerHTML = COUNTRYSIDE_SHEETS.map(
-    (s) =>
-      `<button class="sheet-btn" data-series="cm" data-id="${s.id}"><b>${s.id.replace("CM-", "")}</b>${s.name}</button>`
-  ).join("");
 }
 
-function flySheet(series, id) {
-  const list = series === "cm" ? COUNTRYSIDE_SHEETS : HM20C_SHEETS;
-  const s = list.find((x) => x.id === id);
+function flySheet(id) {
+  const s = HM20C_SHEETS.find((x) => x.id === id);
   if (!s) return;
   map.setView(s.center, state.course.scaleLocked ? map.getZoom() : s.zoom);
   document.querySelectorAll(".sheet-btn").forEach((b) => b.classList.toggle("active", b.dataset.id === id));
 }
 
 function renderSidebar() {
-  applyDiscipline();
   document.getElementById("course-name").value = state.course.name;
-  document.getElementById("course-type").value = state.course.type;
   document.getElementById("play-mode").value = state.course.playMode || "linear";
   document.getElementById("paper-size").value = state.course.paperSize || "A4";
   document.getElementById("paper-orientation").value = currentOrientation();
@@ -1256,7 +1268,7 @@ function renderSidebar() {
   document.getElementById("stat-n").textContent = String(stats.count);
   document.getElementById("stat-legs").textContent = String(stats.legs.length);
   document.getElementById("stat-time").textContent = stats.dist
-    ? `約 ${walkMinutes(stats.dist, state.course.type !== "urban")} 分鐘`
+    ? `約 ${walkMinutes(stats.dist)} 分鐘`
     : "—";
   document.getElementById("course-meet").value = state.course.meet || "";
   document.getElementById("course-cutoff").value = state.course.cutoff || "";
@@ -1298,11 +1310,6 @@ function renderSidebar() {
     document.getElementById("ed-clue").value = sel.clue;
     document.getElementById("ed-note").value = sel.note;
     document.getElementById("ed-score").value = sel.score ?? 0;
-    const cd = sel.cd || {};
-    document.getElementById("ed-cd-feature").value = cd.feature || "";
-    document.getElementById("ed-cd-appearance").value = cd.appearance || "";
-    document.getElementById("ed-cd-position").value = cd.position || "";
-    document.getElementById("ed-cd-size").value = cd.size || "";
   }
   document.body.classList.toggle("score-mode", state.course.playMode === "score");
   updatePaperInfo();
@@ -1320,8 +1327,8 @@ function renderSheetInfo() {
   const stats = courseStats();
   const list = orderedControls();
   titleEl.textContent = state.course.name || "定向地圖";
-  const kind = state.course.type === "countryside" ? "野外／郊遊定向" : "城市定向";
-  const mode = state.course.playMode === "score" ? "奪分式（自由路線）" : "越野式（按順序）";
+  const kind = "城市定向";
+  const mode = state.course.playMode === "score" ? "奪分式（自由路線）" : "按順序";
   const orientation = currentOrientation();
   const distTxt = stats.dist >= 1000 ? `${(stats.dist / 1000).toFixed(2)} km` : `${Math.round(stats.dist)} m`;
   const s = state.course.scaleLocked
@@ -1351,35 +1358,6 @@ function renderSheetInfo() {
       </tr>`;
     })
     .join("");
-  renderCD();
-}
-
-/* ---------- IOF 控制點提示符號表(地圖同一張紙的角落覆蓋)---------- */
-function renderCD() {
-  const el = document.getElementById("cd-overlay");
-  if (!el) return;
-  const list = orderedControls();
-  if (!state.cdOn || !list.length) {
-    el.hidden = true;
-    return;
-  }
-  el.hidden = false;
-  const stats = courseStats();
-  // 由最後一個 CP 至終點的距離
-  let finishM = 0;
-  const realCtrls = list.filter((c) => c.kind === "control");
-  const fin = list.find((c) => c.kind === "finish");
-  const last =
-    realCtrls.length > 0
-      ? realCtrls[realCtrls.length - 1]
-      : list.find((c) => c.kind === "start");
-  if (fin && last && fin !== last) finishM = planarDistance(last, fin);
-  const meta = {
-    classes: state.course.playMode === "score" ? "SCORE" : "",
-    lengthKm: stats.dist >= 1000 ? (stats.dist / 1000).toFixed(1) : "",
-    climb: "",
-  };
-  el.innerHTML = clueTableHTML(list, meta, finishM);
 }
 
 /* ---------- persistence ---------- */
@@ -1431,7 +1409,7 @@ function exportGpx() {
     `<gpx version="1.1" creator="Scout System" xmlns="http://www.topografix.com/GPX/1/1">`,
     `  <metadata>`,
     `    <name>${esc(state.course.name)}</name>`,
-    `    <desc>${esc(state.course.type === "urban" ? "城市定向" : "野外／郊遊定向")}</desc>`,
+    `    <desc>${esc("城市定向")}</desc>`,
     `  </metadata>`,
     wpts,
     `  <rte>`,
@@ -1455,22 +1433,15 @@ function importCourse(file) {
       if (!data || !Array.isArray(data.controls)) throw new Error("format");
       remember();
       const wasLocked = state.course.scaleLocked;
-      state.course = { ...emptyCourse(), ...data, system: "Scout System" };
+      state.course = normalizeCourse(data);
       state.course.orientation = normalizeOrientation(state.course.orientation);
-      if (!discScales().includes(Number(state.course.scaleLock)))
-        state.course.scaleLock = currentScaleLock();
       if (wasLocked && !state.course.scaleLocked) setZoomControls(true);
       applyPaper();
       renderCourse();
       renderSidebar();
       syncScaleSelect();
       persist();
-      /* 舊版檔案有「圈選範圍」：對齊一次，之後以白紙為準 */
-      if (frameValid(state.course.frame)) {
-        map.fitBounds(frameBounds(state.course.frame), { animate: false });
-      } else if (state.course.controls.length) {
-        fitCourse();
-      }
+      if (state.course.controls.length) fitCourse();
       if (state.course.scaleLocked) {
         lockScale(true);
         toast(t(`已匯入路線（比例已鎖定 ${scaleLabel(currentScaleLock())}）`, `Imported (scale locked at ${scaleLabel(currentScaleLock())})`));
@@ -1495,44 +1466,28 @@ function searchPlaces(q) {
 }
 
 /* ---------- sample ---------- */
-function loadSample(kind) {
+function loadSample() {
   remember();
   const wasLocked = state.course.scaleLocked;
   if (wasLocked) {
     state.course.scaleLocked = false;
     setZoomControls(true);
   }
-  if (kind === "urban") {
-    state.layer = "hm20c";
-    state.course = {
-      ...emptyCourse(),
-      name: "尖沙咀海濱城市定向（示範）",
-      type: "urban",
-      meet: "尖沙咀鐘樓",
-      cutoff: "活動開始後 90 分鐘",
-      sos: "領袖電話／999",
-      controls: [
-        { id: uid(), kind: "start", lat: 22.2939, lng: 114.1697, code: "S", name: "鐘樓", clue: "古蹟鐘樓南面空地", note: "", score: 0 },
-        { id: uid(), kind: "control", lat: 22.2948, lng: 114.172, code: "31", name: "星光大道", clue: "海濱欄杆／牌匾", note: "", score: 0 },
-        { id: uid(), kind: "control", lat: 22.2972, lng: 114.1691, code: "32", name: "香港文化中心", clue: "廣場旗杆附近", note: "", score: 0 },
-        { id: uid(), kind: "control", lat: 22.2956, lng: 114.1665, code: "33", name: "天星碼頭", clue: "碼頭入口告示", note: "", score: 0 },
-        { id: uid(), kind: "finish", lat: 22.2939, lng: 114.1697, code: "F", name: "返回鐘樓", clue: "起點集合", note: "", score: 0 },
-      ],
-    };
-  } else {
-    state.layer = "countryside";
-    state.course = {
-      ...emptyCourse(),
-      name: "西貢北潭涌郊遊定向（示範）",
-      type: "countryside",
-      controls: [
-        { id: uid(), kind: "start", lat: 22.3968, lng: 114.3212, code: "S", name: "北潭涌", clue: "郊野公園遊客中心附近", note: "", score: 0 },
-        { id: uid(), kind: "control", lat: 22.4005, lng: 114.3238, code: "31", name: "麥理浩徑起點", clue: "徑道石碑／標距柱", note: "", score: 0 },
-        { id: uid(), kind: "control", lat: 22.3982, lng: 114.3285, code: "32", name: "郊遊徑分岔", clue: "小路交匯", note: "", score: 0 },
-        { id: uid(), kind: "finish", lat: 22.3968, lng: 114.3212, code: "F", name: "返回遊客中心", clue: "集合點", note: "", score: 0 },
-      ],
-    };
-  }
+  state.layer = "hm20c";
+  state.course = {
+    ...emptyCourse(),
+    name: "尖沙咀海濱城市定向（示範）",
+    meet: "尖沙咀鐘樓",
+    cutoff: "活動開始後 90 分鐘",
+    sos: "領袖電話／999",
+    controls: [
+      { id: uid(), kind: "start", lat: 22.2939, lng: 114.1697, code: "S", name: "鐘樓", clue: "古蹟鐘樓南面空地", note: "", score: 0 },
+      { id: uid(), kind: "control", lat: 22.2948, lng: 114.172, code: "31", name: "星光大道", clue: "海濱欄杆／牌匾", note: "", score: 0 },
+      { id: uid(), kind: "control", lat: 22.2972, lng: 114.1691, code: "32", name: "香港文化中心", clue: "廣場旗杆附近", note: "", score: 0 },
+      { id: uid(), kind: "control", lat: 22.2956, lng: 114.1665, code: "33", name: "天星碼頭", clue: "碼頭入口告示", note: "", score: 0 },
+      { id: uid(), kind: "finish", lat: 22.2939, lng: 114.1697, code: "F", name: "返回鐘樓", clue: "起點集合", note: "", score: 0 },
+    ],
+  };
   syncScaleSelect();
   syncScaleLockButton();
   applyBasemap();
@@ -1543,106 +1498,55 @@ function loadSample(kind) {
   fitCourse();
 }
 
-/* ---------- IOF 提示符號 picker 下拉選單 ---------- */
-function populateCDPicker() {
-  const feat = document.getElementById("ed-cd-feature");
-  if (!feat) return;
-  const cats = {};
-  for (const [id, v] of Object.entries(FEATURE)) {
-    (cats[v.c] = cats[v.c] || []).push([id, v.t]);
-  }
-  const order = ["地貌", "石系", "水系", "植被", "人造"];
-  feat.innerHTML =
-    `<option value="">（未選）</option>` +
-    order
-      .filter((c) => cats[c])
-      .map(
-        (c) =>
-          `<optgroup label="${c}">${cats[c]
-            .map(([id, t]) => `<option value="${id}">${t}</option>`)
-            .join("")}</optgroup>`
-      )
-      .join("");
-  const app = document.getElementById("ed-cd-appearance");
-  app.innerHTML =
-    `<option value="">（無）</option>` +
-    Object.entries(APPEARANCE)
-      .map(([id, v]) => `<option value="${id}">${v.t}</option>`)
-      .join("");
-  const pos = document.getElementById("ed-cd-position");
-  pos.innerHTML =
-    `<option value="">（無）</option>` +
-    Object.entries(POSITION)
-      .map(([id, v]) => `<option value="${id}">${v.t}</option>`)
-      .join("");
-}
-
 /* ---------- boot ---------- */
 function bind() {
-  populateCDPicker();
-  document.querySelectorAll(".basemaps button").forEach((b) => {
-    b.addEventListener("click", () => setLayer(b.dataset.layer));
+  document.querySelectorAll(".basemaps button").forEach((button) => {
+    button.addEventListener("click", () => setLayer(button.dataset.layer));
   });
-  document.querySelectorAll(".tool").forEach((b) => {
-    b.addEventListener("click", () => {
-      if (b.dataset.tool === "clear-measure") {
+  document.querySelectorAll(".tool").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.tool === "clear-measure") {
         clearMeasure();
         return;
       }
-      setTool(b.dataset.tool);
+      setTool(button.dataset.tool);
     });
   });
-  document.getElementById("hm20c-grid").addEventListener("click", (e) => {
-    const s = e.target.closest(".sheet-btn");
-    if (s) flySheet("hm20c", s.dataset.id);
+  document.getElementById("hm20c-grid").addEventListener("click", (event) => {
+    const sheet = event.target.closest(".sheet-btn");
+    if (sheet) flySheet(sheet.dataset.id);
   });
-  document.getElementById("cm-grid").addEventListener("click", (e) => {
-    const s = e.target.closest(".sheet-btn");
-    if (s) flySheet("cm", s.dataset.id);
-  });
-  document.getElementById("course-name").addEventListener("input", (e) => {
+  document.getElementById("course-name").addEventListener("input", (event) => {
     rememberText();
-    state.course.name = e.target.value;
+    state.course.name = event.target.value;
     renderSheetInfo();
     persist();
   });
-  document.getElementById("course-type").addEventListener("change", (e) => {
+  document.getElementById("play-mode").addEventListener("change", (event) => {
     remember();
-    state.course.type = e.target.value;
-    applyDiscipline();
-    if (!discScales().includes(Number(state.course.scaleLock)))
-      state.course.scaleLock = currentScaleLock();
-    syncScaleSelect();
-    cancelAnn();
-    renderAnnPalette();
-    renderSheetInfo();
-    persist();
-  });
-  document.getElementById("play-mode").addEventListener("change", (e) => {
-    remember();
-    state.course.playMode = e.target.value;
+    state.course.playMode = event.target.value;
     renderSidebar();
     renderCourse();
     persist();
   });
-  document.getElementById("paper-size").addEventListener("change", (e) => {
+  document.getElementById("paper-size").addEventListener("change", (event) => {
     remember();
-    state.course.paperSize = e.target.value;
+    state.course.paperSize = event.target.value;
     applyPaper();
     renderSheetInfo();
     persist();
     toast(t(`紙張已改為 ${state.course.paperSize}，白紙＝列印頁`, `Paper set to ${state.course.paperSize}`));
   });
-  document.getElementById("paper-orientation").addEventListener("change", (e) => {
+  document.getElementById("paper-orientation").addEventListener("change", (event) => {
     remember();
-    state.course.orientation = normalizeOrientation(e.target.value);
+    state.course.orientation = normalizeOrientation(event.target.value);
     applyPaper();
     renderSheetInfo();
     persist();
     toast(t(`紙張已改為 ${orientationLabel(currentOrientation())}`, `Orientation set to ${orientationLabel(currentOrientation(), true)}`));
   });
-  document.getElementById("screen-preview").addEventListener("change", (e) => {
-    state.previewMode = e.target.value === "actual" ? "actual" : "fit";
+  document.getElementById("screen-preview").addEventListener("change", (event) => {
+    state.previewMode = event.target.value === "actual" ? "actual" : "fit";
     applyPaper();
     persist();
     toast(
@@ -1651,98 +1555,65 @@ function bind() {
         : t("已切換到實際 mm 顯示", "Actual mm view")
     );
   });
-  document.getElementById("opt-lines").addEventListener("change", (e) => {
-    state.linesOn = e.target.checked;
+  document.getElementById("opt-lines").addEventListener("change", (event) => {
+    state.linesOn = event.target.checked;
     renderCourse();
   });
-  document.getElementById("opt-grid").addEventListener("change", (e) => {
-    state.gridOn = e.target.checked;
+  document.getElementById("opt-grid").addEventListener("change", (event) => {
+    state.gridOn = event.target.checked;
     document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
     renderGrid();
   });
-  document.getElementById("opt-cd").addEventListener("change", (e) => {
-    state.cdOn = e.target.checked;
-    document.getElementById("btn-cd").classList.toggle("on", state.cdOn);
-    renderCD();
+  document.getElementById("opt-grid-labels").addEventListener("change", (event) => {
+    state.gridLabelsOn = event.target.checked;
+    renderGrid();
   });
-  document.getElementById("opt-leader").addEventListener("change", (e) => {
-    state.leaderOn = e.target.checked;
+  document.getElementById("opt-leader").addEventListener("change", (event) => {
+    state.leaderOn = event.target.checked;
     document.body.classList.toggle("leader", state.leaderOn);
   });
-  document.getElementById("ctrl-list").addEventListener("click", (e) => {
-    const del = e.target.closest("[data-del]");
+  document.getElementById("ctrl-list").addEventListener("click", (event) => {
+    const del = event.target.closest("[data-del]");
     if (del) {
       removeControl(del.dataset.del);
       return;
     }
-    const row = e.target.closest(".ctrl");
+    const row = event.target.closest(".ctrl");
     if (!row) return;
     state.selectedId = row.dataset.id;
-    const c = state.course.controls.find((x) => x.id === row.dataset.id);
-    if (c) map.panTo([c.lat, c.lng]);
+    const control = state.course.controls.find((item) => item.id === row.dataset.id);
+    if (control) map.panTo([control.lat, control.lng]);
     renderSidebar();
   });
   ["ed-code", "ed-name", "ed-clue", "ed-note", "ed-score"].forEach((id) => {
-    document.getElementById(id).addEventListener("input", (e) => {
-      const sel = state.course.controls.find((c) => c.id === state.selectedId);
-      if (!sel) return;
+    document.getElementById(id).addEventListener("input", (event) => {
+      const selected = state.course.controls.find((control) => control.id === state.selectedId);
+      if (!selected) return;
       rememberText();
-      const key = id.replace("ed-", "");
-      sel[key] = e.target.value;
+      selected[id.replace("ed-", "")] = event.target.value;
       renderCourse();
       persist();
     });
   });
-  ["ed-cd-feature", "ed-cd-appearance", "ed-cd-position"].forEach((id) => {
-    document.getElementById(id).addEventListener("change", (e) => {
-      const sel = state.course.controls.find((c) => c.id === state.selectedId);
-      if (!sel) return;
-      rememberText();
-      sel.cd = sel.cd || {};
-      sel.cd[id.replace("ed-cd-", "")] = e.target.value;
-      renderCD();
-      persist();
-    });
-  });
-  document.getElementById("ed-cd-size").addEventListener("input", (e) => {
-    const sel = state.course.controls.find((c) => c.id === state.selectedId);
-    if (!sel) return;
-    rememberText();
-    sel.cd = sel.cd || {};
-    sel.cd.size = e.target.value;
-    renderCD();
-    persist();
-  });
   document.getElementById("btn-grid").addEventListener("click", () => {
     state.gridOn = !state.gridOn;
     document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
-    const cb = document.getElementById("opt-grid");
-    if (cb) cb.checked = state.gridOn;
+    const checkbox = document.getElementById("opt-grid");
+    if (checkbox) checkbox.checked = state.gridOn;
     renderGrid();
-  });
-  document.getElementById("btn-cd").addEventListener("click", () => {
-    state.cdOn = !state.cdOn;
-    document.getElementById("btn-cd").classList.toggle("on", state.cdOn);
-    const cb = document.getElementById("opt-cd");
-    if (cb) cb.checked = state.cdOn;
-    renderCD();
   });
   document.getElementById("btn-fit-course").addEventListener("click", fitCourse);
   document.getElementById("offpaper-chip").addEventListener("click", fitCourse);
-  document.getElementById("scale-select").addEventListener("change", (e) => {
-    const s = Number(e.target.value);
-    if (!discScales().includes(s)) return;
-    remember();
-    state.course.scaleLock = s;
-    map.setZoom(zoomForScale(map.getCenter().lat, s), { animate: false });
-    updatePaperInfo();
-    renderSheetInfo();
-    toast(
-      state.course.scaleLocked
-        ? t(`已鎖定 ${scaleLabel(s)}（縮放停用）`, `Locked at ${scaleLabel(s)}`)
-        : t(`已對齊約 ${scaleLabel(s)}`, `Aligned near ${scaleLabel(s)}`)
-    );
-    persist();
+  document.getElementById("scale-select").addEventListener("change", (event) => {
+    applyScale(event.target.value);
+  });
+  const customScale = document.getElementById("scale-custom");
+  const applyCustomScale = () => {
+    if (customScale?.value.trim()) applyScale(customScale.value);
+  };
+  document.getElementById("btn-scale-custom").addEventListener("click", applyCustomScale);
+  customScale.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") applyCustomScale();
   });
   document.getElementById("btn-scale-lock").addEventListener("click", () => {
     if (state.course.scaleLocked) {
@@ -1750,14 +1621,14 @@ function bind() {
       toast(t("比例已解鎖，可自由縮放", "Scale unlocked"));
     } else {
       lockScale();
-      toast(t(`已 LOCK 死 ${scaleLabel(currentScaleLock())}：白紙上就是這個比例印出`, `Scale locked at ${scaleLabel(currentScaleLock())}`));
+      toast(t(`已鎖定 ${scaleLabel(currentScaleLock())}：白紙上就是這個比例印出`, `Scale locked at ${scaleLabel(currentScaleLock())}`));
     }
   });
   document.getElementById("btn-locate").addEventListener("click", () => {
     if (!navigator.geolocation) return toast("此瀏覽器不支援定位");
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
+      (position) => {
+        const { latitude, longitude } = position.coords;
         if (state.course.scaleLocked) map.setView([latitude, longitude], map.getZoom());
         else map.setView([latitude, longitude], 16);
         L.circleMarker([latitude, longitude], {
@@ -1775,10 +1646,9 @@ function bind() {
   document.getElementById("btn-export").addEventListener("click", exportCourse);
   document.getElementById("btn-gpx").addEventListener("click", exportGpx);
   ["course-meet", "course-cutoff", "course-sos"].forEach((id) => {
-    document.getElementById(id).addEventListener("input", (e) => {
+    document.getElementById(id).addEventListener("input", (event) => {
       rememberText();
-      const key = id.replace("course-", "");
-      state.course[key] = e.target.value;
+      state.course[id.replace("course-", "")] = event.target.value;
       renderSheetInfo();
       persist();
     });
@@ -1786,10 +1656,10 @@ function bind() {
   document.getElementById("btn-import").addEventListener("click", () => {
     document.getElementById("file-import").click();
   });
-  document.getElementById("file-import").addEventListener("change", (e) => {
-    const f = e.target.files[0];
-    if (f) importCourse(f);
-    e.target.value = "";
+  document.getElementById("file-import").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (file) importCourse(file);
+    event.target.value = "";
   });
   document.getElementById("btn-new").addEventListener("click", () => runClearAction("course"));
   document.getElementById("btn-undo").addEventListener("click", undo);
@@ -1797,10 +1667,9 @@ function bind() {
   document.getElementById("btn-redo").addEventListener("click", redo);
   document.getElementById("btn-clear-cps").addEventListener("click", () => runClearAction("cps"));
   document.getElementById("btn-wipe").addEventListener("click", () => runClearAction("storage"));
-  document.getElementById("ann-palette").addEventListener("click", (e) => {
-    const b = e.target.closest(".ann-btn");
-    if (!b) return;
-    setAnnTool(b.dataset.amode, b.dataset.asym);
+  document.getElementById("ann-palette").addEventListener("click", (event) => {
+    const button = event.target.closest(".ann-btn");
+    if (button) setAnnTool(button.dataset.amode, button.dataset.asym);
   });
   document.getElementById("btn-ann-finish").addEventListener("click", finishAnn);
   document.getElementById("btn-ann-cancel").addEventListener("click", cancelAnn);
@@ -1809,36 +1678,35 @@ function bind() {
   document.getElementById("restore-undo").addEventListener("click", undo);
   document.getElementById("restore-wipe").addEventListener("click", () => runClearAction("storage"));
   const clearMenu = document.getElementById("clear-menu");
-  const clearBtn = document.getElementById("btn-clear-menu");
+  const clearButton = document.getElementById("btn-clear-menu");
   const closeClearMenu = () => {
     clearMenu.hidden = true;
-    clearBtn.setAttribute("aria-expanded", "false");
+    clearButton.setAttribute("aria-expanded", "false");
   };
-  clearBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
+  clearButton.addEventListener("click", (event) => {
+    event.stopPropagation();
     const open = clearMenu.hidden;
     clearMenu.hidden = !open;
-    clearBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    clearButton.setAttribute("aria-expanded", open ? "true" : "false");
   });
-  clearMenu.addEventListener("click", (e) => {
-    const item = e.target.closest("[data-clear]");
+  clearMenu.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-clear]");
     if (!item) return;
     closeClearMenu();
     runClearAction(item.dataset.clear);
   });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".hist-clear")) closeClearMenu();
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".hist-clear")) closeClearMenu();
   });
-  document.getElementById("btn-sample-u").addEventListener("click", () => loadSample("urban"));
-  document.getElementById("btn-sample-c").addEventListener("click", () => loadSample("country"));
+  document.getElementById("btn-sample-u").addEventListener("click", loadSample);
   document.getElementById("btn-lang").addEventListener("click", () => {
     state.lang = state.lang === "zh" ? "en" : "zh";
     document.getElementById("btn-lang").textContent = state.lang === "zh" ? "EN" : "中";
     toast(state.lang === "zh" ? "介面以中文為主" : "Labels stay bilingual; UI notes in English");
   });
   document.getElementById("btn-goto").addEventListener("click", gotoGrid);
-  document.getElementById("grid-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") gotoGrid();
+  document.getElementById("grid-input").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") gotoGrid();
   });
   document.getElementById("btn-about").addEventListener("click", () => {
     document.getElementById("about").classList.add("open");
@@ -1849,72 +1717,69 @@ function bind() {
   document.getElementById("terms-ok").addEventListener("click", () => {
     localStorage.setItem(TERMS_KEY, "1");
     document.getElementById("terms").classList.remove("open");
-    if (!hasMeaningfulCourse(state.course) && !frameValid(state.course.frame))
-      document.getElementById("disc-select").classList.add("open");
   });
-  document.getElementById("disc-forest").addEventListener("click", () => chooseDiscipline("countryside"));
-  document.getElementById("disc-urban").addEventListener("click", () => chooseDiscipline("urban"));
 
-  const q = document.getElementById("q");
-  const sug = document.getElementById("suggest");
-  q.addEventListener("input", () => {
-    const hits = searchPlaces(q.value);
+  const query = document.getElementById("q");
+  const suggestions = document.getElementById("suggest");
+  query.addEventListener("input", () => {
+    const hits = searchPlaces(query.value);
     if (!hits.length) {
-      sug.classList.remove("open");
-      sug.innerHTML = "";
+      suggestions.classList.remove("open");
+      suggestions.innerHTML = "";
       return;
     }
-    sug.innerHTML = hits
-      .map(
-        (h) =>
-          `<button data-lat="${h.lat}" data-lng="${h.lng}"><span class="tag">${h.tag}</span>${h.name}</button>`
-      )
+    suggestions.innerHTML = hits
+      .map((hit) => `<button data-lat="${hit.lat}" data-lng="${hit.lng}"><span class="tag">${hit.tag}</span>${hit.name}</button>`)
       .join("");
-    sug.classList.add("open");
+    suggestions.classList.add("open");
   });
-  sug.addEventListener("click", (e) => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    if (state.course.scaleLocked) map.setView([Number(b.dataset.lat), Number(b.dataset.lng)], map.getZoom());
-    else map.setView([Number(b.dataset.lat), Number(b.dataset.lng)], 16);
-    sug.classList.remove("open");
+  suggestions.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    const lat = Number(button.dataset.lat);
+    const lng = Number(button.dataset.lng);
+    map.setView([lat, lng], state.course.scaleLocked ? map.getZoom() : 16);
+    suggestions.classList.remove("open");
   });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".search")) sug.classList.remove("open");
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".search")) suggestions.classList.remove("open");
   });
 
-  document.addEventListener("keydown", (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
-      if (e.target.matches("input, textarea")) return;
-      e.preventDefault();
-      if (e.shiftKey) redo();
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+      if (event.target.matches("input, textarea")) return;
+      event.preventDefault();
+      if (event.shiftKey) redo();
       else undo();
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
-      if (e.target.matches("input, textarea")) return;
-      e.preventDefault();
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y") {
+      if (event.target.matches("input, textarea")) return;
+      event.preventDefault();
       redo();
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
-      e.preventDefault();
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p") {
+      event.preventDefault();
       doPrint();
       return;
     }
-    if (e.key === "Escape") {
+    if (event.key === "Escape") {
       closeClearMenu();
       document.getElementById("confirm").classList.remove("open");
       document.getElementById("about").classList.remove("open");
+      setTool("pan");
     }
-    if (e.target.matches("input, textarea")) return;
-    const mapKey = { 1: "hm20c", 2: "countryside", 3: "imagery", s: "start", c: "control", f: "finish", m: "measure", p: "pan", Escape: "pan" };
-    if (e.key === "g" && !e.metaKey) {
+    if (event.target.matches("input, textarea")) return;
+    const mapKey = { 1: "hm20c", 2: "imagery", s: "start", c: "control", f: "finish", m: "measure", p: "pan" };
+    if (event.key.toLowerCase() === "g" && !event.metaKey) {
       document.getElementById("btn-grid").click();
       return;
     }
-    if (mapKey[e.key] && ["hm20c", "countryside", "imagery"].includes(mapKey[e.key])) setLayer(mapKey[e.key]);
-    else if (mapKey[e.key]) setTool(mapKey[e.key]);
+    if (mapKey[event.key]) {
+      if (["hm20c", "imagery"].includes(mapKey[event.key])) setLayer(mapKey[event.key]);
+      else setTool(mapKey[event.key]);
+    }
   });
 
   window.addEventListener("beforeprint", () => map.invalidateSize());
@@ -1943,13 +1808,13 @@ function boot() {
   }
   const savedAll = loadAll();
   const saved = savedAll.current;
-  if (savedAll.layer) state.layer = savedAll.layer;
+  if (savedAll.layer) state.layer = savedAll.layer === "imagery" ? "imagery" : "hm20c";
   if (savedAll.previewMode === "actual" || savedAll.previewMode === "fit") {
     state.previewMode = savedAll.previewMode;
   }
-  if (saved && Array.isArray(saved.controls)) state.course = { ...emptyCourse(), ...saved };
+  if (saved && Array.isArray(saved.controls)) state.course = normalizeCourse(saved);
   state.course.orientation = normalizeOrientation(state.course.orientation);
-  const restored = hasMeaningfulCourse(state.course) || frameValid(state.course.frame);
+  const restored = hasMeaningfulCourse(state.course);
   renderSheets();
   bind();
   renderAnnPalette();
@@ -1959,12 +1824,8 @@ function boot() {
   renderMeasure();
   renderSidebar();
   syncScaleSelect();
-  /* 還原上次視圖：舊版「圈選範圍」對齊一次；否則對齊路線第一點 */
-  if (frameValid(state.course.frame)) {
-    map.fitBounds(frameBounds(state.course.frame), { animate: false });
-  } else if (state.course.controls[0]) {
-    map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
-  }
+  /* 還原上次視圖：有路線時先把第一個點放在畫面中心。 */
+  if (state.course.controls[0]) map.setView([state.course.controls[0].lat, state.course.controls[0].lng], 15);
   if (state.course.scaleLocked) {
     lockScale(true);
     toast(t(`比例已鎖定 ${scaleLabel(currentScaleLock())}`, `Scale locked at ${scaleLabel(currentScaleLock())}`));
@@ -1974,13 +1835,13 @@ function boot() {
   updateHistoryButtons();
   updateReadout(L.latLng(HK_CENTER[0], HK_CENTER[1]));
   document.getElementById("btn-grid").classList.toggle("on", state.gridOn);
-  document.getElementById("btn-cd").classList.toggle("on", state.cdOn);
-  const cdCb0 = document.getElementById("opt-cd");
-  if (cdCb0) cdCb0.checked = state.cdOn;
+  const gridCheckbox = document.getElementById("opt-grid");
+  if (gridCheckbox) gridCheckbox.checked = state.gridOn;
+  const gridLabelCheckbox = document.getElementById("opt-grid-labels");
+  if (gridLabelCheckbox) gridLabelCheckbox.checked = state.gridLabelsOn;
+  document.body.classList.toggle("leader", state.leaderOn);
   if (!localStorage.getItem(TERMS_KEY)) {
     document.getElementById("terms").classList.add("open");
-  } else if (!restored) {
-    document.getElementById("disc-select").classList.add("open");
   }
   if (wiped) toast(t("已清除本機暫存，從空白路線開始", "Browser draft cleared"));
   else if (restored) {
@@ -1996,6 +1857,7 @@ function boot() {
   const fit = () => {
     applyPaperLayout();
     map.invalidateSize();
+    renderGrid();
   };
   requestAnimationFrame(fit);
   setTimeout(fit, 250);

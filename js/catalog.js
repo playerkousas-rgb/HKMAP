@@ -21,80 +21,7 @@ export const IB20000 = {
   ],
 };
 
-export const COUNTRYSIDE_PACKS = [
-  {
-    id: "CM-HK",
-    name: "香港島及鄰近島嶼",
-    paper: "官方紙本郊區地圖第 11 版（2025）",
-    files: [
-      { code: "SS07", name: "香港島", href: `${PDF}/SS07_HongKongIsland.pdf`, size: "6.6 MB" },
-      { code: "SS10", name: "南丫島", href: `${PDF}/SS10_LammaIsland.pdf`, size: "2.3 MB" },
-      { code: "SS13", name: "蒲台群島", href: `${PDF}/SS13_PoToiIslands.pdf`, size: "2.0 MB" },
-    ],
-  },
-  {
-    id: "CM-LT",
-    name: "大嶼山及鄰近島嶼",
-    paper: "官方紙本郊區地圖第 11 版（2025）",
-    files: [
-      { code: "SS09", name: "大嶼山", href: `${PDF}/SS09_LantauIsland.pdf`, size: "5.6 MB" },
-      { code: "IS07", name: "東涌", href: `${PDF}/IS07_TungChung.pdf`, size: "3.4 MB" },
-      { code: "IS08", name: "大澳", href: `${PDF}/IS08_TaiO.pdf`, size: "2.8 MB" },
-      { code: "IS09", name: "昂坪", href: `${PDF}/IS09_NgongPing.pdf`, size: "2.1 MB" },
-      { code: "IS12", name: "梅窩", href: `${PDF}/IS12_MuiWo.pdf`, size: "3.4 MB" },
-    ],
-  },
-  {
-    id: "CM-NW",
-    name: "新界西北部",
-    paper: "官方紙本郊區地圖第 12 版（2023）",
-    files: [
-      { code: "SS03", name: "屯門／元朗", href: `${PDF}/SS03_TuenMun_YuenLong.pdf`, size: "8.3 MB" },
-      { code: "SS11", name: "龍鼓洲", href: `${PDF}/SS11_LungKwuChau.pdf`, size: "1.7 MB" },
-    ],
-  },
-  {
-    id: "CM-NE",
-    name: "新界東北及中部",
-    paper: "官方紙本郊區地圖第 10 版（2023）",
-    files: [
-      { code: "SS01", name: "米埔／上水", href: `${PDF}/SS01_MaiPo_SheungShui.pdf`, size: "10.8 MB" },
-      { code: "SS02", name: "八仙嶺／印洲塘", href: `${PDF}/SS02_PatSinLeng_DoubleHaven.pdf`, size: "8.2 MB" },
-      { code: "SS04", name: "大帽山／馬鞍山", href: `${PDF}/SS04_TaiMoShan_MaOnShan.pdf`, size: "11.3 MB" },
-    ],
-  },
-  {
-    id: "CM-SK",
-    name: "西貢及清水灣",
-    paper: "官方紙本郊區地圖第 16 版（2023）",
-    files: [
-      { code: "SS05", name: "西貢", href: `${PDF}/SS05_SaiKung.pdf`, size: "6.9 MB" },
-      { code: "SS08", name: "將軍澳／果洲群島", href: `${PDF}/SS08_TseungKwanO_NinepinGroup.pdf`, size: "5.5 MB" },
-    ],
-  },
-];
-
 export const EHKG_GROUPS = [
-  {
-    id: "ss",
-    name: "小比例圖（郊野／全境，最接近郊遊圖）",
-    files: [
-      { code: "SS00", name: "香港特別行政區圖", href: `${PDF}/SS00_HKSAR.pdf`, size: "4.4 MB" },
-      { code: "SS01", name: "米埔／上水", href: `${PDF}/SS01_MaiPo_SheungShui.pdf`, size: "10.8 MB" },
-      { code: "SS02", name: "八仙嶺／印洲塘", href: `${PDF}/SS02_PatSinLeng_DoubleHaven.pdf`, size: "8.2 MB" },
-      { code: "SS03", name: "屯門／元朗", href: `${PDF}/SS03_TuenMun_YuenLong.pdf`, size: "8.3 MB" },
-      { code: "SS04", name: "大帽山／馬鞍山", href: `${PDF}/SS04_TaiMoShan_MaOnShan.pdf`, size: "11.3 MB" },
-      { code: "SS05", name: "西貢", href: `${PDF}/SS05_SaiKung.pdf`, size: "6.9 MB" },
-      { code: "SS06", name: "青衣／九龍半島", href: `${PDF}/SS06_TsingYi_KowloonPeninsula.pdf`, size: "8.1 MB" },
-      { code: "SS07", name: "香港島", href: `${PDF}/SS07_HongKongIsland.pdf`, size: "6.6 MB" },
-      { code: "SS08", name: "將軍澳／果洲群島", href: `${PDF}/SS08_TseungKwanO_NinepinGroup.pdf`, size: "5.5 MB" },
-      { code: "SS09", name: "大嶼山", href: `${PDF}/SS09_LantauIsland.pdf`, size: "5.6 MB" },
-      { code: "SS10", name: "南丫島", href: `${PDF}/SS10_LammaIsland.pdf`, size: "2.3 MB" },
-      { code: "SS11", name: "龍鼓洲", href: `${PDF}/SS11_LungKwuChau.pdf`, size: "1.7 MB" },
-      { code: "SS12", name: "索罟群島", href: `${PDF}/SS12_SokoIslands.pdf`, size: "2.0 MB" },
-      { code: "SS13", name: "蒲台群島", href: `${PDF}/SS13_PoToiIslands.pdf`, size: "2.0 MB" },
-    ],
-  },
   {
     id: "urban",
     name: "市區大圖（城市定向常用）",
@@ -205,14 +132,11 @@ export const EHKG_META = {
   guide: "https://www.landsd.gov.hk/doc/en/mapping/ehkg/individual_PDF/eHKG2026_Chinese_User_Guide.pdf",
   legend: "https://www.landsd.gov.hk/doc/en/mapping/ehkg/individual_PDF/5_Legend.pdf",
   copyright: "https://www.landsd.gov.hk/tc/resources/mapping-information/mapping-teaching-resources/copyright.html",
-  paperCountryside: "https://www.landsd.gov.hk/tc/survey-mapping/mapping/thematic-mapping.html",
-  hiking: "https://www.hiking.gov.hk/",
 };
 
 export const FEATURE_IDEAS = [
-  { id: "print", title: "A4 紙圖＋CP 圓圈", for: "兩者", note: "已做：策劃者放點，列印給參加者用紙圖玩。" },
-  { id: "card", title: "參加者控制卡（打孔空格）", for: "兩者", note: "另頁列印到達時間／答案空格，不用手機。" },
-  { id: "master", title: "領袖答案圖", for: "兩者", note: "同一張圖加坐標與正確路線，只給策劃者。" },
-  { id: "multi", title: "A／B／C 多條路線", for: "兩者", note: "同一底圖分難度，分色套印。" },
-  { id: "bearing", title: "野外方位＋段距表", for: "野外", note: "印在圖邊，方便指南針與步測。" },
-];
+  { id: "print", title: "A4 紙圖＋CP 圓圈", for: "城市", note: "已做：策劃者放點，列印給參加者用紙圖玩。" },
+  { id: "card", title: "參加者控制卡（打孔空格）", for: "城市", note: "另頁列印到達時間／答案空格，不用手機。" },
+  { id: "master", title: "領袖答案圖", for: "城市", note: "同一張圖加坐標與正確路線，只給策劃者。" },
+  { id: "multi", title: "A／B／C 多條路線", for: "城市", note: "同一底圖分難度，分色套印。" },
+  ];
