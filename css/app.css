@@ -386,35 +386,6 @@ button, input, select, textarea { font-family: inherit; }
 .desc th { background: #f3eee3; }
 body:not(.leader) .leader-only { display: none; }
 
-/* 城市地圖標記 palette */
-.ann-palette { display: flex; flex-direction: column; gap: 4px; }
-.ann-grp { margin: 4px 0 2px; font-size: 10.5px; font-weight: 700; color: var(--moss); letter-spacing: .04em; }
-.ann-tag {
-  margin: 0 0 4px; display: inline-block;
-  font-size: 10px; font-weight: 700; letter-spacing: .03em;
-  color: #fff; background: var(--forest); border-radius: 999px; padding: 2px 9px;
-}
-.ann-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
-.ann-btn {
-  display: flex; align-items: center; gap: 6px;
-  border: 1px solid var(--line);
-  background: #fff;
-  border-radius: 8px;
-  padding: 5px 7px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ink);
-  cursor: pointer;
-  text-align: left;
-}
-.ann-btn:hover { border-color: var(--gold); background: #fff8e6; }
-.ann-btn.active { border-color: var(--forest); background: #e7f0ea; box-shadow: inset 0 0 0 1px var(--forest); }
-.ann-sw {
-  width: 15px; height: 15px; border-radius: 3px; flex: 0 0 auto;
-  display: inline-block; box-sizing: border-box;
-}
-.ann-pt-wrap { background: transparent !important; border: 0 !important; }
-
 /* 方格數字沿網線邊緣顯示，亦會隨同地圖一起列印。 */
 .grid-label {
   background: transparent !important;
@@ -422,19 +393,14 @@ body:not(.leader) .leader-only { display: none; }
   pointer-events: none;
   overflow: visible;
 }
+/* 方格數字：無框、無底色，字體大小／顏色接近一般地圖注記。 */
 .grid-label span {
   display: inline-block;
-  min-width: 34px;
-  padding: 2px 4px;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, .9);
   color: inherit;
-  font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: .02em;
-  text-align: center;
+  font: 500 9px/1.2 var(--sans);
+  letter-spacing: .03em;
   white-space: nowrap;
-  text-shadow: 0 0 2px #fff;
+  text-shadow: 0 0 3px #fff, 0 0 2px #fff;
 }
 .grid-label-east span { transform: translateY(2px); }
 .grid-label-north span { transform: translate(-2px, 0); }

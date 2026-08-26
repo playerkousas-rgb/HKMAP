@@ -22,13 +22,6 @@ import {
   zoomForScale,
 } from "./hkgeo.js";
 import { drawOverprint, orderedControls as orderControls } from "./overprint.js";
-import {
-  URBAN_RUN,
-  URBAN_POINT,
-  URBAN_LINE,
-  annotationLayer,
-  isUrbanAnnotation,
-} from "./urban.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
@@ -50,9 +43,6 @@ const state = {
   course: emptyCourse(),
   selectedId: null,
   measure: [],
-  annMode: null,
-  annSym: null,
-  annDraft: null,
 };
 
 function emptyCourse() {
@@ -93,16 +83,7 @@ function normalizeCourse(data) {
         return clean;
       })
     : [];
-  course.annotations = Array.isArray(source.annotations)
-    ? source.annotations
-        .map((annotation) => {
-          const clean = { ...annotation };
-          // 舊版城市 palette 曾把獨樹命名為 distinctTreeU，匯入時保留這個城市標記。
-          if (clean.sym === "distinctTreeU") clean.sym = "distinctTree";
-          return clean;
-        })
-        .filter(isUrbanAnnotation)
-    : [];
+  course.annotations = Array.isArray(source.annotations) ? source.annotations : [];
   return course;
 }
 
@@ -368,7 +349,7 @@ async function runClearAction(action) {
   if (action === "storage") {
     const ok = await askConfirm({
       title: t("清除本機暫存？", "Clear browser storage?"),
-      body: t("瀏覽器記住的路線、比例鎖定都會刪除，畫面會重新載入。未匯出的資料無法復原。條款同意會保留。", "The saved course and scale lock in this browser will be deleted and the page will reload. Unexported work cannot be recovered. Terms agreement is kept."),
+      body: t("瀏覽器記住的路線、比例鎖定都會刪除，畫面會重新載入。資料無法復原。條款同意會保留。", "The saved course and scale lock in this browser will be deleted and the page will reload. Work cannot be recovered. Terms agreement is kept."),
       ok: t("清除並重新開始", "Clear and restart"),
       danger: true,
     });
@@ -392,14 +373,9 @@ const labels = L.tileLayer(landsdUrl("label", "tc"), tileOptions({ pane: "overla
 const basemap = L.tileLayer(landsdUrl("basemap"), tileOptions({ minZoom: 10 }));
 const imagery = L.tileLayer(landsdUrl("imagery"), tileOptions({ minZoom: 10 }));
 
-map.createPane("ann");
-map.getPane("ann").style.zIndex = 390;
-
 const courseLayer = L.layerGroup().addTo(map);
 const measureLayer = L.layerGroup().addTo(map);
 const gridLayer = L.layerGroup().addTo(map);
-const annLayer = L.layerGroup().addTo(map);
-const annDraftLayer = L.layerGroup().addTo(map);
 
 function applyBasemap() {
   [basemap, imagery].forEach((l) => {
@@ -598,12 +574,14 @@ function drawZoneGrid(zone, b, step, style, major) {
   const labelLng = zoneWest < zoneEast ? (zoneWest + zoneEast) / 2 : zone === 49 ? 113.999 : 114.001;
   const labelEasting = toUtmInZone(b.getCenter().lat, labelLng, zone).e;
   let count = 0;
+  // 數字顏色用中性灰（接近一般地圖注記），不用網線紫。
+  const labelColor = state.layer === "imagery" ? "#3f3b34" : "#57534a";
 
   // 垂直線（固定東距 E，北距 n0→n1）。
   for (let e = e0; e <= e1 && count < maxLines; e += step, count++) {
     drawClippedLine(zone, lngW, lngE, samples, true, e, n0, n1, style);
     if (shouldLabelGridLine(e, step, major)) {
-      labelLineAt(zone, lngW, lngE, e, nMax, "east", step, style.color);
+      labelLineAt(zone, lngW, lngE, e, nMax, "east", step, labelColor);
     }
   }
   count = 0;
@@ -611,7 +589,7 @@ function drawZoneGrid(zone, b, step, style, major) {
   for (let n = n0; n <= n1 && count < maxLines; n += step, count++) {
     drawClippedLine(zone, lngW, lngE, samples, false, n, e0, e1, style);
     if (shouldLabelGridLine(n, step, major)) {
-      labelLineAt(zone, lngW, lngE, labelEasting, n, "north", step, style.color);
+      labelLineAt(zone, lngW, lngE, labelEasting, n, "north", step, labelColor);
     }
   }
 }
@@ -712,7 +690,6 @@ function renderCourse() {
     },
   });
   renderSheetInfo();
-  renderAnnotations();
   updateOffPaper();
 }
 
@@ -788,225 +765,12 @@ function renderMeasure() {
     .addTo(measureLayer);
 }
 
-/* ---------- 城市地圖標記 ---------- */
-let annDrag = null; // 拖移面/線時的全域狀態
-
-function annPointScale() {
-  const z = map.getZoom();
-  const ref = 15; // ≈1:15 000
-  return Math.max(0.45, Math.min(3, Math.pow(2, z - ref)));
-}
-
-function renderAnnotations() {
-  annLayer.clearLayers();
-  const canDelete = state.tool === "delete";
-  const canMove = state.tool === "pan";
-  const interactive = canDelete || canMove;
-  const ps = annPointScale();
-  for (const a of state.course.annotations || []) {
-    const layer = annotationLayer(a, L, {
-      pointScale: ps,
-      interactive,
-      draggable: canMove && a.type === "point",
-    });
-    if (!layer) continue;
-    layer.addTo(annLayer);
-    if (canDelete) layer.on("click", () => deleteAnnotation(a.id));
-    if (canMove) {
-      if (a.type === "point" && layer.dragging) {
-        layer.on("dragend", () => {
-          const pos = layer.getLatLng();
-          a.latlngs[0] = { lat: pos.lat, lng: pos.lng };
-          remember();
-          persist();
-        });
-      } else if (a.type === "fill" || a.type === "line") {
-        enablePathDrag(layer, a);
-      }
-    }
-  }
-}
-
-function deleteAnnotation(id) {
-  remember();
-  state.course.annotations = (state.course.annotations || []).filter((x) => x.id !== id);
-  renderAnnotations();
-  persist();
-  toast(t("已刪除標記", "Annotation deleted"));
-}
-
-/** 面/線整體拖移(平移模式下,在圖層上按住拖動)。 */
-function enablePathDrag(layer, ann) {
-  layer.on("mousedown", (e) => {
-    if (state.tool !== "pan") return;
-    annDrag = {
-      layer,
-      ann,
-      start: e.latlng,
-      orig: ann.latlngs.map((p) => ({ lat: p.lat, lng: p.lng })),
-      moved: false,
-    };
-    map.dragging.disable();
-    L.DomEvent.stopPropagation(e);
-  });
-}
-
-function renderAnnPalette() {
-  const box = document.getElementById("ann-palette");
-  if (!box) return;
-  const fillLbl = "面狀特徵（建築／鋪面）";
-  const ptLbl = "點狀特徵";
-  const lnLbl = "線狀特徵（牆／圍欄／樓梯）";
-  const tag = "城市定向";
-  const sw = (bg, border) =>
-    `<span class="ann-sw" style="background:${bg}${border ? ";border:1px solid " + border : ""}"></span>`;
-  const isActive = (mode, id) =>
-    state.annMode === mode && state.annSym === id ? " active" : "";
-  const runBtns = Object.entries(URBAN_RUN)
-    .map(([id, v]) => `<button class="ann-btn${isActive("fill", id)}" data-amode="fill" data-asym="${id}">${sw(v.color, v.edge || "#00000040")}${v.t}</button>`)
-    .join("");
-  const ptBtns = Object.entries(URBAN_POINT)
-    .map(([id, v]) => `<button class="ann-btn${isActive("point", id)}" data-amode="point" data-asym="${id}">${sw(v.shape === "tree" ? "#2E7D32" : v.color, v.color)}${v.t}</button>`)
-    .join("");
-  const lnBtns = Object.entries(URBAN_LINE)
-    .map(([id, v]) => `<button class="ann-btn${isActive("line", id)}" data-amode="line" data-asym="${id}">${sw("transparent", v.color)}${v.t}</button>`)
-    .join("");
-  box.innerHTML =
-    `<p class="ann-tag">${tag}</p>` +
-    `<p class="ann-grp">${fillLbl}</p><div class="ann-row">${runBtns}</div>` +
-    `<p class="ann-grp">${ptLbl}</p><div class="ann-row">${ptBtns}</div>` +
-    `<p class="ann-grp">${lnLbl}</p><div class="ann-row">${lnBtns}</div>`;
-}
-
-function setAnnTool(mode, sym) {
-  cancelAnn();
-  state.annMode = mode;
-  state.annSym = sym;
-  state.tool = "ann";
-  if (mode === "fill" || mode === "line") map.doubleClickZoom.disable();
-  document.querySelectorAll(".tool").forEach((b) =>
-    b.classList.toggle("active", b.dataset.tool === "ann")
-  );
-  map.getContainer().style.cursor = "crosshair";
-  renderAnnPalette();
-  updateAnnDraftInfo();
-  renderAnnotations();
-}
-
-function updateAnnDraftInfo() {
-  const el = document.getElementById("ann-draft-info");
-  const fin = document.getElementById("btn-ann-finish");
-  const can = document.getElementById("btn-ann-cancel");
-  const drawing = state.tool === "ann" && (state.annMode === "fill" || state.annMode === "line");
-  if (el)
-    el.textContent = state.tool === "ann" && state.annMode === "point"
-      ? "點擊地圖蓋印(可連續)；完成後按「平移」退出。"
-      : "";
-  if (!drawing) {
-    if (fin) fin.hidden = true;
-    if (can) can.hidden = true;
-    return;
-  }
-  const n = state.annDraft ? state.annDraft.latlngs.length : 0;
-  if (el) el.textContent = `已點 ${n} 點，繼續點擊加點；雙擊或按「完成」收筆。`;
-  const minOK = state.annMode === "line" ? n >= 2 : n >= 3;
-  if (fin) fin.hidden = !minOK;
-  if (can) can.hidden = false;
-}
-
-function handleAnnClick(ll) {
-  if (state.annMode === "point") {
-    remember();
-    state.course.annotations = state.course.annotations || [];
-    state.course.annotations.push({
-      id: uid(),
-      type: "point",
-      sym: state.annSym,
-      latlngs: [{ lat: ll.lat, lng: ll.lng }],
-    });
-    renderAnnotations();
-    persist();
-    return;
-  }
-  if (!state.annDraft) state.annDraft = { latlngs: [] };
-  state.annDraft.latlngs.push({ lat: ll.lat, lng: ll.lng });
-  drawAnnDraft();
-  updateAnnDraftInfo();
-}
-
-function drawAnnDraft() {
-  annDraftLayer.clearLayers();
-  if (!state.annDraft || state.annDraft.latlngs.length === 0) return;
-  const ll = state.annDraft.latlngs.map((p) => [p.lat, p.lng]);
-  if (state.annMode === "fill") {
-    L.polygon(ll, {
-      color: "#d7b056", weight: 1.5, dashArray: "4 3",
-      fillColor: "#d7b056", fillOpacity: 0.18, interactive: false,
-    }).addTo(annDraftLayer);
-  } else {
-    L.polyline(ll, { color: "#d7b056", weight: 2.5, dashArray: "4 3", interactive: false }).addTo(annDraftLayer);
-  }
-  state.annDraft.latlngs.forEach((p) =>
-    L.circleMarker([p.lat, p.lng], { radius: 3, color: "#d7b056", fillOpacity: 1, interactive: false }).addTo(annDraftLayer)
-  );
-}
-
-function finishAnn() {
-  if (!state.annDraft || state.annDraft.latlngs.length < 2) return;
-  const pts = state.annDraft.latlngs;
-  // 雙擊會令尾兩點重疊，去重
-  if (pts.length >= 2) {
-    const a = pts[pts.length - 1], b = pts[pts.length - 2];
-    if (Math.abs(a.lat - b.lat) < 1e-7 && Math.abs(a.lng - b.lng) < 1e-7) pts.pop();
-  }
-  if (state.annMode === "fill" && pts.length < 3) {
-    toast(t("面至少要 3 點", "A polygon needs at least 3 points"));
-    return;
-  }
-  remember();
-  state.course.annotations = state.course.annotations || [];
-  state.course.annotations.push({
-    id: uid(),
-    type: state.annMode,
-    sym: state.annSym,
-    latlngs: pts.slice(),
-  });
-  state.annDraft = null;
-  annDraftLayer.clearLayers();
-  renderAnnotations();
-  persist();
-  updateAnnDraftInfo();
-  toast(t("已加標記", "Annotation added"));
-}
-
-function cancelAnn() {
-  state.annDraft = null;
-  annDraftLayer.clearLayers();
-  updateAnnDraftInfo();
-}
-
-function clearAnnotations() {
-  if (!(state.course.annotations && state.course.annotations.length)) {
-    toast(t("沒有標記可清除", "No annotations to clear"));
-    return;
-  }
-  remember();
-  state.course.annotations = [];
-  renderAnnotations();
-  persist();
-  toast(t("已清除全部標記", "Annotations cleared"));
-}
-
 /* ---------- events ---------- */
 map.on("mousemove", (e) => {
   updateReadout(e.latlng);
 });
 
 map.on("click", (e) => {
-  if (state.tool === "ann") {
-    handleAnnClick(e.latlng);
-    return;
-  }
   if (state.tool === "start" || state.tool === "control" || state.tool === "finish") {
     addControl(e.latlng.lat, e.latlng.lng, state.tool);
     return;
@@ -1017,36 +781,6 @@ map.on("click", (e) => {
     renderMeasure();
   }
 });
-
-map.on("dblclick", () => {
-  if (state.tool === "ann" && (state.annMode === "fill" || state.annMode === "line")) {
-    finishAnn();
-  }
-});
-
-// 面/線拖移:全域 mousemove/mouseup(只加一次)
-map.on("mousemove", (e) => {
-  if (!annDrag) return;
-  annDrag.moved = true;
-  const dLat = e.latlng.lat - annDrag.start.lat;
-  const dLng = e.latlng.lng - annDrag.start.lng;
-  annDrag.layer.setLatLngs(annDrag.orig.map((p) => [p.lat + dLat, p.lng + dLng]));
-});
-map.on("mouseup", () => {
-  if (!annDrag) return;
-  const { layer, ann, moved } = annDrag;
-  map.dragging.enable();
-  annDrag = null;
-  if (moved) {
-    const raw = layer.getLatLngs();
-    const ring = ann.type === "fill" ? raw[0] : raw;
-    ann.latlngs = ring.map((p) => ({ lat: p.lat, lng: p.lng }));
-    remember();
-    persist();
-  }
-});
-// 縮放時重算點符號大小
-map.on("zoomend", renderAnnotations);
 
 map.on("moveend zoomend", () => {
   renderGrid();
@@ -1196,18 +930,10 @@ function updateScaleChip() {
 
 function setTool(tool) {
   state.tool = tool;
-  if (tool !== "ann") {
-    state.annMode = null;
-    state.annSym = null;
-    cancelAnn();
-    renderAnnPalette();
-    map.doubleClickZoom.enable();
-  }
   document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
   const cursor =
     tool === "pan" ? "" : tool === "delete" ? "not-allowed" : "crosshair";
   map.getContainer().style.cursor = cursor;
-  renderAnnotations();
 }
 
 /* ---------- 白紙外檢查（設計不會超出列印範圍） ---------- */
@@ -1320,7 +1046,7 @@ function renderSidebar() {
   const list = orderedControls();
   const box = document.getElementById("ctrl-list");
   if (!list.length) {
-    box.innerHTML = `<div class="empty">用上方工具在白紙上放置起點 △、檢查點 ○、終點 ◎。</div>`;
+    box.innerHTML = "";
   } else {
     box.innerHTML = list
       .map((c, i) => {
@@ -1420,54 +1146,6 @@ function loadAll() {
   }
 }
 
-function exportCourse() {
-  const blob = new Blob([JSON.stringify(state.course, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${state.course.name || "scout-course"}.scout.json`;
-  a.click();
-}
-
-function exportGpx() {
-  const esc = (s) =>
-    String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const list = orderedControls();
-  const wpts = list
-    .map((c) => {
-      const what = c.kind === "start" ? "起點" : c.kind === "finish" ? "終點" : "檢查點";
-      const desc = [what, c.name, c.clue].filter(Boolean).join(" — ");
-      return [
-        `  <wpt lat="${c.lat.toFixed(6)}" lon="${c.lng.toFixed(6)}">`,
-        `    <name>${esc(c.code)}</name>`,
-        `    <desc>${esc(desc)}</desc>`,
-        `  </wpt>`,
-      ].join("\n");
-    })
-    .join("\n");
-  const rtepts = list
-    .map((c) => `    <rtept lat="${c.lat.toFixed(6)}" lon="${c.lng.toFixed(6)}"><name>${esc(c.code)}</name></rtept>`)
-    .join("\n");
-  const gpx = [
-    `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<gpx version="1.1" creator="Scout System" xmlns="http://www.topografix.com/GPX/1/1">`,
-    `  <metadata>`,
-    `    <name>${esc(state.course.name)}</name>`,
-    `    <desc>${esc("城市定向")}</desc>`,
-    `  </metadata>`,
-    wpts,
-    `  <rte>`,
-    `    <name>${esc(state.course.name)}</name>`,
-    rtepts,
-    `  </rte>`,
-    `</gpx>`,
-  ].join("\n") + "\n";
-  const blob = new Blob([gpx], { type: "application/gpx+xml" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${state.course.name || "scout-course"}.gpx`;
-  a.click();
-}
-
 function importCourse(file) {
   const reader = new FileReader();
   reader.onload = () => {
@@ -1506,39 +1184,6 @@ function searchPlaces(q) {
   return GAZETTEER.filter(
     (p) => p.name.toLowerCase().includes(s) || p.q.toLowerCase().includes(s)
   ).slice(0, 8);
-}
-
-/* ---------- sample ---------- */
-function loadSample() {
-  remember();
-  const wasLocked = state.course.scaleLocked;
-  if (wasLocked) {
-    state.course.scaleLocked = false;
-    setZoomControls(true);
-  }
-  state.layer = "hm20c";
-  state.course = {
-    ...emptyCourse(),
-    name: "尖沙咀海濱城市定向（示範）",
-    meet: "尖沙咀鐘樓",
-    cutoff: "活動開始後 90 分鐘",
-    sos: "領袖電話／999",
-    controls: [
-      { id: uid(), kind: "start", lat: 22.2939, lng: 114.1697, code: "S", name: "鐘樓", clue: "古蹟鐘樓南面空地", note: "", score: 0 },
-      { id: uid(), kind: "control", lat: 22.2948, lng: 114.172, code: "31", name: "星光大道", clue: "海濱欄杆／牌匾", note: "", score: 0 },
-      { id: uid(), kind: "control", lat: 22.2972, lng: 114.1691, code: "32", name: "香港文化中心", clue: "廣場旗杆附近", note: "", score: 0 },
-      { id: uid(), kind: "control", lat: 22.2956, lng: 114.1665, code: "33", name: "天星碼頭", clue: "碼頭入口告示", note: "", score: 0 },
-      { id: uid(), kind: "finish", lat: 22.2939, lng: 114.1697, code: "F", name: "返回鐘樓", clue: "起點集合", note: "", score: 0 },
-    ],
-  };
-  syncScaleSelect();
-  syncScaleLockButton();
-  applyBasemap();
-  applyPaper();
-  renderCourse();
-  renderSidebar();
-  persist();
-  fitCourse();
 }
 
 /* ---------- boot ---------- */
@@ -1693,8 +1338,6 @@ function bind() {
   });
   document.getElementById("btn-print").addEventListener("click", doPrint);
   document.getElementById("btn-print-side").addEventListener("click", doPrint);
-  document.getElementById("btn-export").addEventListener("click", exportCourse);
-  document.getElementById("btn-gpx").addEventListener("click", exportGpx);
   ["course-meet", "course-cutoff", "course-sos"].forEach((id) => {
     document.getElementById(id).addEventListener("input", (event) => {
       rememberText();
@@ -1717,13 +1360,6 @@ function bind() {
   document.getElementById("btn-redo").addEventListener("click", redo);
   document.getElementById("btn-clear-cps").addEventListener("click", () => runClearAction("cps"));
   document.getElementById("btn-wipe").addEventListener("click", () => runClearAction("storage"));
-  document.getElementById("ann-palette").addEventListener("click", (event) => {
-    const button = event.target.closest(".ann-btn");
-    if (button) setAnnTool(button.dataset.amode, button.dataset.asym);
-  });
-  document.getElementById("btn-ann-finish").addEventListener("click", finishAnn);
-  document.getElementById("btn-ann-cancel").addEventListener("click", cancelAnn);
-  document.getElementById("btn-ann-clear").addEventListener("click", clearAnnotations);
   document.getElementById("restore-keep").addEventListener("click", hideRestore);
   document.getElementById("restore-undo").addEventListener("click", undo);
   document.getElementById("restore-wipe").addEventListener("click", () => runClearAction("storage"));
@@ -1748,7 +1384,6 @@ function bind() {
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".hist-clear")) closeClearMenu();
   });
-  document.getElementById("btn-sample-u").addEventListener("click", loadSample);
   document.getElementById("btn-lang").addEventListener("click", () => {
     state.lang = state.lang === "zh" ? "en" : "zh";
     document.getElementById("btn-lang").textContent = state.lang === "zh" ? "EN" : "中";
@@ -1870,7 +1505,6 @@ function boot() {
   const restored = hasMeaningfulCourse(state.course);
   renderSheets();
   bind();
-  renderAnnPalette();
   applyBasemap();
   applyPaper();
   renderCourse();
