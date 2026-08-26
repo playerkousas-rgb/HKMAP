@@ -1,4 +1,4 @@
-/** Orienteering overprint (IOF-style magenta). For planners to print paper maps. */
+/** 城市定向路線套印，供策劃者列印紙圖。 */
 export const MAGENTA = "#d00070";
 
 export function orderedControls(controls) {
@@ -13,23 +13,23 @@ export function orderedControls(controls) {
 export function controlIcon(ctrl, index) {
   if (ctrl.kind === "start") {
     return L.divIcon({
-      className: "or-icon",
-      html: `<div class="iof-start" title="起點"></div>`,
+      className: "course-icon",
+      html: `<div class="course-start" title="起點"></div>`,
       iconSize: [28, 26],
       iconAnchor: [14, 18],
     });
   }
   if (ctrl.kind === "finish") {
     return L.divIcon({
-      className: "or-icon",
-      html: `<div class="iof-finish" title="終點"></div>`,
+      className: "course-icon",
+      html: `<div class="course-finish" title="終點"></div>`,
       iconSize: [34, 34],
       iconAnchor: [17, 17],
     });
   }
   return L.divIcon({
-    className: "or-icon",
-    html: `<div class="iof-ctrl"><span class="ring"></span><span class="lab">${ctrl.code || index}</span></div>`,
+    className: "course-icon",
+    html: `<div class="course-control"><span class="ring"></span><span class="lab">${ctrl.code || index}</span></div>`,
     iconSize: [56, 36],
     iconAnchor: [16, 18],
   });

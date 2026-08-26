@@ -1,5 +1,4 @@
 import {
-  COUNTRYSIDE_PACKS,
   EHKG_GROUPS,
   EHKG_META,
   FEATURE_IDEAS,
@@ -26,25 +25,6 @@ function renderIb() {
       </div>
       <p class="notice" style="margin-top:12px">本系統地圖畫面已用官方地形圖 API 顯示同一套 iB 資料，設計路線不必等下載完成。下載原檔是為了 QGIS、離線備份或自行出圖。</p>
     </section>`;
-}
-
-function renderCountry() {
-  return `
-    <section class="card">
-      <h2>電子版郊遊圖／郊區地圖</h2>
-      <p class="warn">官方 <strong>5 幅紙本郊區地圖</strong>目前<strong>沒有</strong>免費電子掃描版，仍是地政總署印刷品（防水合成紙）。成員不能「一鍵下載整張郊遊圖 PDF」。</p>
-      <p>以下是<strong>合法免費</strong>、最接近郊遊圖用途的電子包：e香港街 2026 小比例 GeoPDF（可 A3/A4 列印、可用 Avenza 定位）＋ iB20000 ＋ 漁護署郊野樂行。</p>
-      <p><a href="${EHKG_META.paperCountryside}" target="_blank" rel="noopener">紙本郊區地圖產品頁</a>　·　
-      <a href="${EHKG_META.hiking}" target="_blank" rel="noopener">郊野樂行</a>　·　
-      <a href="${EHKG_META.copyright}" target="_blank" rel="noopener">e香港街版權告示</a></p>
-    </section>
-    ${COUNTRYSIDE_PACKS.map(
-      (p) => `<section class="card">
-        <h2>${p.name}</h2>
-        <p class="notice">${p.paper}　→　建議先下載下列官方 GeoPDF 作電子預習</p>
-        <div class="file-grid">${p.files.map(fileCard).join("")}</div>
-      </section>`
-    ).join("")}`;
 }
 
 function renderEhkg(filter = "") {
@@ -84,7 +64,7 @@ function renderPrint() {
         <li><strong>檢查點說明表</strong> — 印在圖下方，參加者對照尋點</li>
         <li><strong>匯出 JSON</strong> — 給其他策劃者繼續改圖</li>
       </ul>
-      <p class="notice">列印底圖來自官方地形圖 API，須保留「Map from Lands Department」。不是紙本 HM20C／郊區地圖複製品。</p>
+      <p class="notice">列印底圖來自官方地形圖 API，須保留「Map from Lands Department」。不是紙本 HM20C 複製品。</p>
       <p><a class="solid" href="index.html" style="display:inline-block;text-decoration:none">返回設計地圖</a></p>
     </section>`;
 }
@@ -102,7 +82,6 @@ function renderIdeas() {
 
 const panels = {
   hm20c: renderIb,
-  country: renderCountry,
   ehkg: () => renderEhkg(""),
   print: renderPrint,
   ideas: renderIdeas,

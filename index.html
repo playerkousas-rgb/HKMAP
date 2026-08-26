@@ -24,12 +24,11 @@
       </div>
       <div class="basemaps" role="tablist" aria-label="底圖">
         <button type="button" class="active" data-layer="hm20c">HM20C / iB20000</button>
-        <button type="button" data-layer="countryside">郊遊圖</button>
         <button type="button" data-layer="imagery">航空照片</button>
       </div>
       <div class="search">
         <span class="ico">⌕</span>
-        <input id="q" type="search" placeholder="搜尋地點、營地、郊遊熱點…" autocomplete="off" />
+        <input id="q" type="search" placeholder="搜尋地點、街道或活動地點…" autocomplete="off" />
         <div id="suggest" class="suggest"></div>
       </div>
       <div class="top-actions">
@@ -65,13 +64,9 @@
         <label class="field">路線名稱
           <input id="course-name" maxlength="80" />
         </label>
-        <label class="field">底圖類型
-          <select id="course-type">
-            <option value="urban">城市定向</option><option value="countryside">野外／郊遊定向</option>
-          </select>
-        </label>
+        <div class="urban-badge" aria-label="賽種">城市定向</div>
         <div class="row">
-          <label class="field">遊玩方式<select id="play-mode"><option value="linear">越野式（按順序）</option><option value="score">奪分式（自由路線）</option></select></label>
+          <label class="field">遊玩方式<select id="play-mode"><option value="linear">按順序</option><option value="score">奪分式（自由路線）</option></select></label>
           <label class="field">列印紙張<select id="paper-size"><option>A3</option><option selected>A4</option><option>A5</option></select></label>
         </div>
         <div class="row">
@@ -79,6 +74,16 @@
           <label class="field">螢幕顯示<select id="screen-preview"><option value="fit" selected>預覽模式（較似平常紙張）</option><option value="actual">實際 mm</option></select></label>
         </div>
         <p class="notice" id="paper-info" style="margin:0 0 8px"></p>
+        <div class="custom-scale">
+          <label class="field">自訂比例（輸入分母）
+            <div class="custom-scale-row">
+              <span>1 :</span>
+              <input id="scale-custom" type="number" min="500" max="100000" step="100" placeholder="例如 6000" inputmode="numeric" />
+              <button class="ghost paper" id="btn-scale-custom" type="button">套用</button>
+            </div>
+          </label>
+          <p class="notice" style="margin:0">可輸入 1:500 至 1:100 000；常用比例亦可在右上方選單直接選取。</p>
+        </div>
         <div class="tools">
           <button class="tool active" data-tool="pan" type="button">平移</button>
           <button class="tool" data-tool="start" type="button">△ 起點</button>
@@ -90,7 +95,7 @@
         <div class="opts">
           <label><input type="checkbox" id="opt-lines" checked /> 路線連線（紫紅套印）</label>
           <label><input type="checkbox" id="opt-grid" checked /> UTM 方格網（KK／QK，同 HM20C）</label>
-          <label id="opt-cd-wrap"><input type="checkbox" id="opt-cd" checked /> 印提示符號表（IOF 八欄，圖角）</label>
+          <label><input type="checkbox" id="opt-grid-labels" checked /> 顯示方格數字（E 東距／N 北距）</label>
           <label><input type="checkbox" id="opt-leader" /> 領袖版：說明表加印方格坐標（KK／QK）</label>
         </div>
         <button class="solid" id="btn-print-side" type="button" style="width:100%;margin-top:8px">🖨 列印地圖（＝畫面白紙）</button>
@@ -109,8 +114,7 @@
         </div>
         <input id="file-import" type="file" accept="application/json,.json" hidden />
         <div class="row" style="margin-top:8px">
-          <button class="ghost paper" id="btn-sample-u" type="button">示範：城市</button>
-          <button class="ghost paper" id="btn-sample-c" type="button">示範：郊遊</button>
+          <button class="ghost paper" id="btn-sample-u" type="button">載入城市示範</button>
         </div>
         <p class="notice" style="margin:8px 0 0">路線會自動暫存在這部瀏覽器。列印頁邊距已改成盡量細（CSS 設為 0 mm；實際仍受瀏覽器／打印機可否無邊框所限）。卡住、想重來：按「↩ 返回」或「清除本機暫存」。網址加 <code>?reset=1</code> 也可強制清空。</p>
         <div class="stats">
@@ -120,7 +124,7 @@
           <div class="stat"><span>估計步行</span><strong id="stat-time">—</strong></div>
         </div>
         <label class="field">集合／撤退點
-          <input id="course-meet" placeholder="例如：北潭涌遊客中心／鐘樓" />
+          <input id="course-meet" placeholder="例如：集合廣場／鐘樓" />
         </label>
         <label class="field">截止時間
           <input id="course-cutoff" placeholder="例如：16:00 必須返回" />
@@ -139,17 +143,6 @@
           <label class="field">檢查點說明（印給參加者）
             <textarea id="ed-clue" placeholder="例如：公園入口告示板、石橋北端、燈柱編號"></textarea>
           </label>
-          <div class="cd-picker">
-            <p class="notice" style="margin:0 0 6px"><strong>IOF 提示符號</strong>（揀了即顯示在圖角提示表）</p>
-            <label class="field">特徵物（D 欄）
-              <select id="ed-cd-feature"></select>
-            </label>
-            <div class="row">
-              <label class="field">外觀（E）<select id="ed-cd-appearance"></select></label>
-              <label class="field">大小（F）<input id="ed-cd-size" placeholder="如 1.0、8x4" /></label>
-            </div>
-            <label class="field">旗幟位置（G）<select id="ed-cd-position"></select></label>
-          </div>
           <label class="field">策劃備註（不印給參加者）<textarea id="ed-note"></textarea></label>
           <label class="field score-field">本 CP 分值<input id="ed-score" type="number" min="0" max="999" step="1" value="0" /></label>
         </div>
@@ -157,8 +150,8 @@
       </section>
 
       <section class="panel" id="ann-panel">
-        <h2>地圖標記 · 微地形／可跑性</h2>
-        <p class="notice" style="margin:0 0 8px">按<strong>底圖類型</strong>自動切換兩套獨立符號,不混用。<strong>揀符號→喺地圖點擊</strong>：面＝圈範圍（雙擊或「完成」收筆）、線＝連點收筆、點＝即蓋印。<br /><strong>改標記</strong>：按「平移」即可拖移；按「刪除」再點標記即逐個刪。點符號隨比例縮放。</p>
+        <h2>城市地圖標記 · 建築／街道特徵</h2>
+        <p class="notice" style="margin:0 0 8px">選擇城市特徵後在地圖點擊：面＝圈範圍（雙擊或「完成」收筆）、線＝連點收筆、點＝即蓋印。<br /><strong>改標記</strong>：按「平移」即可拖移；按「刪除」再點標記即逐個刪。點符號會隨比例縮放。</p>
         <div id="ann-palette" class="ann-palette"></div>
         <div class="row" style="margin-top:8px">
           <button class="solid" id="btn-ann-finish" type="button" hidden>✓ 完成收筆</button>
@@ -199,12 +192,7 @@
       <section class="panel" id="sheet-hm20c">
         <h2>HM20C 圖幅</h2>
         <div id="hm20c-grid" class="sheets"></div>
-        <p class="notice" style="margin:8px 0 0">紙本 HM20C 共 16 幅（幅 1 為圖例）。此處以官方地形圖 API（iB 系列）飛往各幅覆蓋範圍，方便對照童軍山藝／定向教材。</p>
-      </section>
-
-      <section class="panel" id="sheet-cm" hidden>
-        <h2>郊區地圖（5 幅）</h2>
-        <div id="cm-grid" class="sheets five"></div>
+        <p class="notice" style="margin:8px 0 0">紙本 HM20C 共 16 幅（幅 1 為圖例）。此處以官方地形圖 API（iB 系列）飛往各幅覆蓋範圍，方便對照城市定向教材。</p>
       </section>
 
       <section class="panel">
@@ -217,7 +205,7 @@
       </section>
 
       <p class="notice">
-        © Scout System　底圖 © 香港特別行政區政府地政總署　郊遊圖層 © 漁農自然護理署／空間數據共享平台。
+        © Scout System　底圖 © 香港特別行政區政府地政總署。
         使用須遵守<a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">地政總署 Map API 條款</a>。
         紙本地圖版權仍屬政府，本系統不複製紙本圖面。
       </p>
@@ -239,9 +227,8 @@
                 </div>
               </header>
               <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
-              <div class="cd-overlay" id="cd-overlay" aria-label="控制點提示符號表" hidden></div>
               <footer class="sheet-foot">
-                <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印</div>
+                <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印　·　方格數字 E/N</div>
                 <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
               </footer>
             </section>
@@ -286,16 +273,18 @@
       <div class="scale-lock">
         <button class="chip" id="scale-chip" type="button">比例</button>
         <div class="scale-set">
-          <select id="scale-select" title="標準比例（選擇即對齊畫面）">
-            <option value="5000">1 : 5 000</option>
+          <select id="scale-select" title="城市定向常用比例（選擇即對齊畫面）">
+            <option value="2500">1 : 2 500</option>
+            <option value="4000">1 : 4 000</option>
+            <option value="5000" selected>1 : 5 000</option>
+            <option value="7500">1 : 7 500</option>
             <option value="10000">1 : 10 000</option>
             <option value="15000">1 : 15 000</option>
-            <option value="20000" selected>1 : 20 000（HM20C）</option>
+            <option value="20000">1 : 20 000（HM20C）</option>
           </select>
           <button class="chip" id="btn-scale-lock" type="button">🔒 鎖定比例</button>
         </div>
         <button class="chip on" id="btn-grid" type="button">UTM 方格網</button>
-        <button class="chip on" id="btn-cd" type="button" title="提示符號表（IOF 八欄）">提示符號表</button>
         <button class="chip" id="btn-fit-course" type="button">對齊路線</button>
         <button class="chip" id="btn-locate" type="button">我的位置</button>
         <button class="chip warn-chip" id="offpaper-chip" type="button" hidden></button>
@@ -305,7 +294,6 @@
         <strong>Map from Lands Department</strong><br />
         Aerial Photograph from Lands Department<br />
         地形資料對應 iB20000（免費數碼地形圖）<br />
-        郊遊圖層：漁農自然護理署（CSDI）<br />
         © Scout System
       </aside>
     </main>
@@ -314,11 +302,11 @@
   <div id="terms" class="modal" role="dialog" aria-labelledby="terms-title">
     <div class="dialog">
       <h3 id="terms-title">使用地政總署地圖 API</h3>
-      <p>Scout System 透過官方 <strong>LandsD Map API</strong> 顯示香港地形圖與航空照片，方便童軍設計城市定向及郊野定向。圖磚版權屬香港特區政府地政總署。</p>
+      <p>Scout System 透過官方 <strong>LandsD Map API</strong> 顯示香港地形圖與航空照片，方便童軍設計城市定向。圖磚版權屬香港特區政府地政總署。</p>
       <p>按照署方規定，地圖畫面已標示 Lands Department 版權聲明。請勿大量短時間呼叫 API。使用前請閱讀
         <a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">條款及知識產權告示</a>。
       </p>
-      <p>本系統給<strong>策劃者畫圖、列印紙圖</strong>。參加者用紙圖找檢查點，不是手機 App。紙本 HM20C／郊區地圖仍是山藝考核標準教材。</p>
+      <p>本系統給<strong>策劃者畫圖、列印紙圖</strong>。參加者用紙圖找檢查點，不是手機 App。</p>
       <p style="font-size:12px;color:#5d6b64">© Scout System</p>
       <div class="actions">
         <button class="solid" id="terms-ok" type="button">我已閱讀並同意</button>
@@ -338,7 +326,7 @@
           <tr><th>是甚麼</th><td>印刷彩色地圖 16 幅</td><td>數碼地形資料 18 幅</td><td>官方圖磚 API</td></tr>
           <tr><th>價錢</th><td>紙圖另售</td><td>免費 HK$0</td><td>按 Map API 條款使用</td></tr>
           <tr><th>格式</th><td>紙／沒有官方掃描 PDF</td><td>FGDB GML DWG DGN GeoTIFF</td><td>即時 XYZ PNG</td></tr>
-          <tr><th>適合</th><td>山藝考核、帶上山</td><td>QGIS、CAD、離線製圖</td><td>設計城市／郊遊定向</td></tr>
+          <tr><th>適合</th><td>城市紙圖設計</td><td>QGIS、CAD、離線製圖</td><td>設計城市定向</td></tr>
         </tbody>
       </table>
       <p>下載 iB20000：
@@ -346,7 +334,6 @@
         <a href="https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637" target="_blank" rel="noopener">CSDI</a> ·
         <a href="https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf" target="_blank" rel="noopener">價目表</a>
       </p>
-      <p><strong>郊遊圖／郊區地圖</strong> — 官方紙本共 5 幅。本系統「郊遊圖」模式以同一套官方地形圖為底，疊加漁護署開放數據：郊野公園、遠足徑、標距柱。</p>
       <p><strong>坐標</strong> — WGS84 經緯度，加上 HM20C／童軍慣用的 <strong>UTM 100 km 方格</strong>（zone 49Q：GE／HE；zone 50Q：JK／KK），即「KK 1234 5678」8 位方格，對照 HM20C 圖邊數字。</p>
       <div class="actions">
         <button class="solid" id="about-close" type="button">關閉</button>
@@ -362,26 +349,6 @@
         <button class="ghost paper" id="confirm-no" type="button">取消</button>
         <button class="solid" id="confirm-yes" type="button">確定</button>
       </div>
-    </div>
-  </div>
-
-  <div id="disc-select" class="modal" role="dialog" aria-labelledby="disc-title" aria-modal="true">
-    <div class="dialog disc-dialog">
-      <h3 id="disc-title">先揀賽種</h3>
-      <p>兩者係不同工具，功能唔同，唔會混。</p>
-      <div class="disc-cards">
-        <button class="disc-card forest" id="disc-forest" type="button">
-          <span class="disc-emoji">🌲</span>
-          <strong>野外定向</strong>
-          <small>ISOM 定向地圖：可跑性／微地形標記、IOF 提示符號表、1:10 000／15 000</small>
-        </button>
-        <button class="disc-card urban" id="disc-urban" type="button">
-          <span class="disc-emoji">🏙️</span>
-          <strong>城市定向</strong>
-          <small>政府底圖放 CP、列印、UTM 座標、文字說明表、1:5 000</small>
-        </button>
-      </div>
-      <p class="notice" style="margin:10px 0 0">之後仍可喺左欄「底圖類型」切換。</p>
     </div>
   </div>
 
