@@ -69,7 +69,7 @@ function walkMinutes(meters) {
   return Math.max(1, Math.round(meters / 80));
 }
 
-/** 還原／匯入舊檔時固定轉為城市路線，並移除不再支援的舊標記。 */
+/** 還原舊暫存時固定轉為城市路線，並移除不再支援的舊標記。 */
 function normalizeCourse(data) {
   const source = data && typeof data === "object" ? data : {};
   const course = { ...emptyCourse(), ...source, type: "urban", system: "Scout System" };
@@ -1146,37 +1146,6 @@ function loadAll() {
   }
 }
 
-function importCourse(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(reader.result);
-      if (!data || !Array.isArray(data.controls)) throw new Error("format");
-      remember();
-      const wasLocked = state.course.scaleLocked;
-      state.course = normalizeCourse(data);
-      state.course.orientation = normalizeOrientation(state.course.orientation);
-      if (wasLocked && !state.course.scaleLocked) setZoomControls(true);
-      applyPaper();
-      renderCourse();
-      renderSidebar();
-      syncScaleSelect();
-      persist();
-      if (state.course.controls.length) fitCourse();
-      if (state.course.scaleLocked) {
-        lockScale(true);
-        toast(t(`已匯入路線（比例已鎖定 ${scaleLabel(currentScaleLock())}）`, `Imported (scale locked at ${scaleLabel(currentScaleLock())})`));
-        return;
-      }
-      syncScaleLockButton();
-      toast(t("已匯入路線", "Course imported"));
-    } catch {
-      toast(t("檔案格式不正確", "Invalid file"));
-    }
-  };
-  reader.readAsText(file);
-}
-
 /* ---------- search ---------- */
 function searchPlaces(q) {
   const s = q.trim().toLowerCase();
@@ -1345,14 +1314,6 @@ function bind() {
       renderSheetInfo();
       persist();
     });
-  });
-  document.getElementById("btn-import").addEventListener("click", () => {
-    document.getElementById("file-import").click();
-  });
-  document.getElementById("file-import").addEventListener("change", (event) => {
-    const file = event.target.files[0];
-    if (file) importCourse(file);
-    event.target.value = "";
   });
   document.getElementById("btn-new").addEventListener("click", () => runClearAction("course"));
   document.getElementById("btn-undo").addEventListener("click", undo);
