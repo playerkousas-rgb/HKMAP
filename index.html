@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/app.css" />
 </head>
-<body data-paper="A4" data-orientation="landscape" data-preview="fit">
+<body data-paper="A4" data-orientation="landscape" data-preview="actual">
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -47,7 +47,7 @@
           </div>
         </div>
         <a class="ghost" href="mock.html" style="text-decoration:none;display:inline-block">教學</a>
-        <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">下載底圖</a>
+        <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">地圖下載</a>
         <button class="ghost" id="btn-lang" type="button">EN</button>
         <button class="ghost" id="btn-about" type="button">地圖來源</button>
         <button class="solid" id="btn-print" type="button">🖨 列印地圖</button>
@@ -71,8 +71,12 @@
         </div>
         <div class="row">
           <label class="field">紙張方向<select id="paper-orientation"><option value="landscape" selected>橫向</option><option value="portrait">直向</option></select></label>
-          <label class="field">螢幕顯示<select id="screen-preview"><option value="fit" selected>預覽模式（較似平常紙張）</option><option value="actual">實際 mm</option></select></label>
+          <label class="field">螢幕顯示<select id="screen-preview"><option value="fit">預覽（自動貼合視窗）</option><option value="actual" selected>實際 mm（可校準）</option></select></label>
         </div>
+        <label class="field">螢幕寬度（cm）—「實際 mm」要真大小用
+          <input id="screen-calib" type="number" min="15" max="120" step="0.1" placeholder="量螢幕左右闊，例如 34.4" inputmode="decimal" />
+        </label>
+        <p class="notice" style="margin:0 0 8px">留空＝按 96 dpi 螢幕假設（高密度／已縮放嘅螢幕會比真實 A4 細）；填咗螢幕左右闊度就按真實大小顯示。</p>
         <p class="notice" id="paper-info" style="margin:0 0 8px"></p>
         <div class="custom-scale">
           <label class="field">自訂比例（輸入分母）
@@ -105,16 +109,7 @@
         </div>
         <div class="row" style="margin-top:8px">
           <button class="ghost paper" id="btn-new" type="button">新路線</button>
-          <button class="ghost paper" id="btn-export" type="button">匯出 JSON</button>
-          <button class="ghost paper" id="btn-gpx" type="button">匯出 GPX</button>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <button class="ghost paper" id="btn-import" type="button">匯入</button>
           <button class="ghost danger" id="btn-wipe" type="button">清除本機暫存</button>
-        </div>
-        <input id="file-import" type="file" accept="application/json,.json" hidden />
-        <div class="row" style="margin-top:8px">
-          <button class="ghost paper" id="btn-sample-u" type="button">載入城市示範</button>
         </div>
         <p class="notice" style="margin:8px 0 0">路線會自動暫存在這部瀏覽器。列印頁邊距已改成盡量細（CSS 設為 0 mm；實際仍受瀏覽器／打印機可否無邊框所限）。卡住、想重來：按「↩ 返回」或「清除本機暫存」。網址加 <code>?reset=1</code> 也可強制清空。</p>
         <div class="stats">
@@ -146,48 +141,8 @@
           <label class="field">策劃備註（不印給參加者）<textarea id="ed-note"></textarea></label>
           <label class="field score-field">本 CP 分值<input id="ed-score" type="number" min="0" max="999" step="1" value="0" /></label>
         </div>
-        <p class="notice" style="margin:8px 0 0">放好後按「列印地圖」：白紙上的紫紅 CP 圓圈原樣印出，參加者用紙圖玩，不用手機。</p>
       </section>
 
-      <section class="panel" id="ann-panel">
-        <h2>城市地圖標記 · 建築／街道特徵</h2>
-        <p class="notice" style="margin:0 0 8px">選擇城市特徵後在地圖點擊：面＝圈範圍（雙擊或「完成」收筆）、線＝連點收筆、點＝即蓋印。<br /><strong>改標記</strong>：按「平移」即可拖移；按「刪除」再點標記即逐個刪。點符號會隨比例縮放。</p>
-        <div id="ann-palette" class="ann-palette"></div>
-        <div class="row" style="margin-top:8px">
-          <button class="solid" id="btn-ann-finish" type="button" hidden>✓ 完成收筆</button>
-          <button class="ghost paper" id="btn-ann-cancel" type="button" hidden>✗ 取消</button>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <button class="ghost danger" id="btn-ann-clear" type="button">清除全部標記</button>
-          <button class="tool" data-tool="pan" type="button">↩ 平移</button>
-        </div>
-        <p class="notice" id="ann-draft-info" style="margin:6px 0 0"></p>
-      </section>
-
-      <section class="panel" id="sheet-ib20000">
-        <h2>iB20000 數碼地形圖 <span class="badge-free">免費 HK$0</span></h2>
-        <p class="notice" style="margin:0 0 8px">
-          iB20000 是地政總署 <strong>1:20 000 數碼地形資料</strong>，與紙本 HM20C 同一比例、同一測繪處數據庫。
-          2026 年 2 月官方價目表列明免費。畫面「HM20C / iB20000」底圖已用官方地形圖 API 顯示這套資料（即時圖磚）。
-        </p>
-        <p class="notice" style="margin:0 0 8px">
-          它<strong>不是</strong>紙本 HM20C 的彩色掃描 PDF，也不能直接丟進瀏覽器。下載後適合 QGIS／CAD／離線列印。全港約 18 幅圖磚（紙本 HM20C 為 16 張，其中第 1 張是圖例）。
-        </p>
-        <div class="dl-list">
-          <a href="https://www.hkmapservice.gov.hk/OneStopSystem/map-search?product=OSSCatB&series=iB20000" target="_blank" rel="noopener">香港地圖服務 2.0　訂購／下載 iB20000
-            <span>登入後搜尋 iB20000　·　FGDB / GML / DWG / DGN / GeoTIFF</span>
-          </a>
-          <a href="https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637" target="_blank" rel="noopener">空間數據共享平台 CSDI
-            <span>開放數據頁　·　可查 WFS／WMS／REST</span>
-          </a>
-          <a href="https://data.gov.hk/tc-data/dataset/hk-landsd-openmap-development-hkms-digital-b20k" target="_blank" rel="noopener">資料一線通　數碼地形圖 iB20000
-            <span>官方數據集目錄</span>
-          </a>
-          <a href="https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf" target="_blank" rel="noopener">數碼地圖售價表（2026 年 2 月）
-            <span>iB20000 標示 Free / 免費</span>
-          </a>
-        </div>
-      </section>
 
       <section class="panel" id="sheet-hm20c">
         <h2>HM20C 圖幅</h2>
@@ -281,6 +236,7 @@
             <option value="10000">1 : 10 000</option>
             <option value="15000">1 : 15 000</option>
             <option value="20000">1 : 20 000（HM20C）</option>
+            <option value="25000">1 : 25 000</option>
           </select>
           <button class="chip" id="btn-scale-lock" type="button">🔒 鎖定比例</button>
         </div>
