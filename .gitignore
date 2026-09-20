@@ -1,5 +1,36 @@
+# ---------- 版本控制同本機設定 ----------
 .DS_Store
 .idea
 .vscode
-*.log
+
+# ---------- 依賴同快取（唔好 commit；Vercel 自己會裝） ----------
 node_modules
+.vercel
+.cache
+.npm
+dist
+build
+out
+coverage
+
+# ---------- 備份／暫存／日誌（開發殘留） ----------
+*.log
+*.bak
+*.backup
+*.tmp
+*.temp
+*.old
+*.orig
+*.rej
+*~
+
+# ---------- 測試上傳資料夾 ----------
+uploads
+tmp
+temp
+
+# ---------- 大型原稿／展示圖（會令 repo 同部署爆容量；請用外部儲存） ----------
+*.psd
+*.ai
+*.sketch
+*.zip

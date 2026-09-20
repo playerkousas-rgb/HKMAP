@@ -1,0 +1,64 @@
+# ============================================================
+# Scout System — Vercel 上傳排除清單（防爆儲存空間）
+# 呢個檔決定「邊啲檔案唔會上傳到 Vercel」。規則同 .gitignore 一樣。
+# ！重要！唔可以排除：index.html／css／js／assets／教學.md／vercel.json／package.json／scripts
+# （scripts 同 package.json 係 npm run build 用嘅，排咗雲端建置會失敗）
+# ============================================================
+
+# ---------- 版本控制同本機設定 ----------
+.git
+.gitignore
+.github
+.gitattributes
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+
+# ---------- 依賴（Vercel 自己會裝，唔使上傳） ----------
+node_modules
+node_modules/**
+
+# ---------- 快取同建置產物（靜態根目錄部署時唔需要重複上傳） ----------
+.vercel
+.cache
+.npm
+.npmrc
+.next
+.nuxt
+.output
+.parcel-cache
+.svelte-kit
+.turbo
+.vite
+dist
+build
+out
+coverage
+*.tsbuildinfo
+
+# ---------- 備份／暫存／日誌（開發殘留，一律唔上傳） ----------
+*.bak
+*.backup
+*.tmp
+*.temp
+*.old
+*.orig
+*.rej
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*~
+
+# ---------- 測試上傳資料夾（本機測試用，唔屬於網站） ----------
+uploads
+tmp
+temp
+drafts
+草稿
+
+# ---------- 專案說明文件（repo 睇得到就夠，唔使部署；教學.md 例外，網站有連結） ----------
+README.md
+防增肥規範.md

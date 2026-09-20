@@ -12,25 +12,6 @@ export const HK_BOUNDS = [
 
 export const HK_CENTER = [22.352, 114.158];
 
-export const LINKS = {
-  terms: "https://portal.csdi.gov.hk/csdi-webpage/doc/TNC",
-  topoApi: "https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI",
-  hm20c: "https://www.landsd.gov.hk/tc/survey-mapping/mapping/multi-scale-topographic-mapping/paper-map.html",
-  ib20000:
-    "https://www.landsd.gov.hk/tc/survey-mapping/mapping/multi-scale-topographic-mapping/digital-map.html",
-  ib20000Order:
-    "https://www.hkmapservice.gov.hk/OneStopSystem/map-search?product=OSSCatB&series=iB20000",
-  ib20000Csdi:
-    "https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637",
-  ib20000Data:
-    "https://data.gov.hk/tc-data/dataset/hk-landsd-openmap-development-hkms-digital-b20k",
-  priceList:
-    "https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf",
-  geoinfo: "https://www.map.gov.hk/",
-  landsd: "https://www.landsd.gov.hk/",
-  hkms: "https://www.hkmapservice.gov.hk/",
-};
-
 /* ---------- HM20C / UTM 方格（zone 49Q / 50Q，KK · JK · HE · GE）----------
  * 紙本 HM20C 與童軍慣用的「KK 1234 5678」8 位方格，採用 UTM（環球橫墨卡托）
  * 100 km 方格。香港橫跨 114° 子午線：以西 UTM zone 49（GE／HE），以東 zone 50（JK／KK）。
@@ -131,9 +112,11 @@ export function magneticBearing(gridDeg) {
 }
 
 export function formatDeg(deg) {
-  const d = Math.floor(deg);
-  const m = Math.round((deg - d) * 60);
-  return `${String(d).padStart(3, "0")}° ${String(m % 60).padStart(2, "0")}′`;
+  // 先把「分」四捨五入再一次換算，避免 45.9999° 變成「045° 00′」這類度數冇進位的顯示。
+  const total = Math.round(deg * 60);
+  const d = Math.floor(total / 60) % 360;
+  const m = total % 60;
+  return `${String(d).padStart(3, "0")}° ${String(m).padStart(2, "0")}′`;
 }
 
 function pad4(x) {

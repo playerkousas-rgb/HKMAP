@@ -105,6 +105,14 @@ function t(zh, en) {
   return state.lang === "zh" ? zh : en;
 }
 
+/** 使用者輸入的文字要放入 innerHTML 前先轉義，否則 < & " 會令列印內容走樣。 */
+function esc(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch])
+  );
+}
+
 const hist = { past: [], future: [], ignore: false };
 let textBurst = false;
 let textBurstTimer = 0;
@@ -338,7 +346,7 @@ async function runClearAction(action) {
   if (action === "course") {
     const ok = await askConfirm({
       title: t("開新路線？", "New course?"),
-      body: t("會清空檢查點與鎖定，並覆寫本機暫存。建議先匯出 JSON。", "Clears controls and locks, and overwrites the browser draft. Export JSON first if you need it."),
+      body: t("會清空檢查點與比例鎖定，並覆寫這部瀏覽器嘅暫存，之前嘅內容無法復原。", "Clears controls and the scale lock and overwrites the browser draft — earlier work cannot be recovered."),
       ok: t("全新路線", "Start fresh"),
       danger: true,
     });
@@ -1073,13 +1081,13 @@ function renderSidebar() {
         const extra = leg
           ? `${Math.round(leg.d)} m · 方格 ${formatDeg(leg.g)} · 磁北 ${formatDeg(leg.m)}`
           : t("出發", "Start");
-        return `<div class="ctrl ${c.kind}" data-id="${c.id}">
-          <div class="num">${c.kind === "start" ? "△" : c.kind === "finish" ? "◎" : c.code}</div>
+        return `<div class="ctrl ${esc(c.kind)}" data-id="${esc(c.id)}">
+          <div class="num">${c.kind === "start" ? "△" : c.kind === "finish" ? "◎" : esc(c.code)}</div>
           <div>
-            <strong>${c.name || (c.kind === "control" ? "檢查點 " + c.code : c.kind)}</strong>
+            <strong>${esc(c.name || (c.kind === "control" ? "檢查點 " + c.code : c.kind))}</strong>
             <div class="meta">${g.fig6}　${extra}</div>
           </div>
-          <button class="del" data-del="${c.id}" title="刪除">×</button>
+          <button class="del" data-del="${esc(c.id)}" title="刪除">×</button>
         </div>`;
       })
       .join("");
@@ -1134,10 +1142,10 @@ function renderSheetInfo() {
       const leg = i > 0 ? `${Math.round(stats.legs[i - 1].d)} m` : "—";
       const what = c.kind === "start" ? "起點" : c.kind === "finish" ? "終點" : "檢查點";
       const score =
-        state.course.playMode === "score" && c.kind === "control" ? `　·　${c.score ?? 0} 分` : "";
+        state.course.playMode === "score" && c.kind === "control" ? `　·　${Number(c.score) || 0} 分` : "";
       return `<tr>
-        <td><strong>${c.code}</strong></td>
-        <td>${what}${c.name ? "　" + c.name : ""}${c.clue ? "　—　" + c.clue : ""}${score}</td>
+        <td><strong>${esc(c.code)}</strong></td>
+        <td>${what}${c.name ? "　" + esc(c.name) : ""}${c.clue ? "　—　" + esc(c.clue) : ""}${score}</td>
         <td class="leader-only">${g.full}</td>
         <td class="leader-only">${g.fig6}</td>
         <td>${leg}</td>
@@ -1271,8 +1279,10 @@ function bind() {
     document.getElementById(id).addEventListener("input", (event) => {
       const selected = state.course.controls.find((control) => control.id === state.selectedId);
       if (!selected) return;
+      const key = id.replace("ed-", "");
       rememberText();
-      selected[id.replace("ed-", "")] = event.target.value;
+      // score 保持數字型別，令暫存 JSON 同其他地方一致
+      selected[key] = key === "score" ? Number(event.target.value) || 0 : event.target.value;
       renderCourse();
       persist();
     });
@@ -1488,18 +1498,24 @@ function boot() {
   if (params.has("layer")) {
     state.layer = normalizeLayer(params.get("layer"));
   }
+  // 用過即清：第一次讀到 flyTo 就由暫存刪除，避免之後每次開頁都自動飛去同一區。
+  const storedFly =
+    savedAll.flyTo && Number.isFinite(savedAll.flyTo.lat) && Number.isFinite(savedAll.flyTo.lng)
+      ? savedAll.flyTo
+      : null;
+  if (savedAll.flyTo) {
+    try {
+      delete savedAll.flyTo;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedAll));
+    } catch {}
+  }
   if (params.has("fly")) {
     const parts = params.get("fly").split(",").map(Number);
     if (parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
       flyTarget = { lat: parts[0], lng: parts[1], zoom: 13 };
     }
-  } else if (savedAll.flyTo && Number.isFinite(savedAll.flyTo.lat) && Number.isFinite(savedAll.flyTo.lng)) {
-    flyTarget = savedAll.flyTo;
-    // 用完即清，避免下次一直飛
-    try {
-      delete savedAll.flyTo;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedAll));
-    } catch {}
+  } else if (storedFly) {
+    flyTarget = storedFly;
   }
 
   renderSheets();

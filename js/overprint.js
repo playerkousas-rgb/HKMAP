@@ -1,6 +1,14 @@
 /** 城市定向路線套印，供策劃者列印紙圖。 */
 export const MAGENTA = "#d00070";
 
+/** CP 代碼由策劃者輸入，放入圖示 HTML 前要轉義（否則 < > & 會爛版）。 */
+function esc(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch])
+  );
+}
+
 export function orderedControls(controls) {
   const list = controls || [];
   return [
@@ -29,7 +37,7 @@ export function controlIcon(ctrl, index) {
   }
   return L.divIcon({
     className: "course-icon",
-    html: `<div class="course-control"><span class="ring"></span><span class="lab">${ctrl.code || index}</span></div>`,
+    html: `<div class="course-control"><span class="ring"></span><span class="lab">${esc(ctrl.code || index)}</span></div>`,
     iconSize: [56, 36],
     iconAnchor: [16, 18],
   });

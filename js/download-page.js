@@ -8,6 +8,14 @@ import {
   IB20000,
 } from "./catalog.js";
 
+/** 轉義使用者輸入／網址參數，避免插入 innerHTML 時變成 HTML。 */
+function esc(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch])
+  );
+}
+
 function fileCard(f) {
   return `<a class="file" href="${f.href}" target="_blank" rel="noopener">
     <b>${f.code}　${f.name}</b>
@@ -46,7 +54,7 @@ function countrysideTile(m) {
       <div class="file-grid" style="margin:0">
         <a class="file" href="${m.href}" target="_blank" rel="noopener"><b>📥 一按下載高清 JPG</b><small>官方預覽　·　地政總署</small></a>
         <a class="file" href="${COUNTRYSIDE_META.official}" target="_blank" rel="noopener"><b>官方專題地圖頁</b><small>紙本地圖購買資訊</small></a>
-        <a class="file" href="index.html#${m.center[0]},${m.center[1]}" data-fly="${m.center[0]},${m.center[1]}" class="fly"><b>🗺 在主頁開啟此區</b><small>底圖切到郊遊圖設計</small></a>
+        <a class="file fly" href="index.html#${m.center[0]},${m.center[1]}" data-fly="${m.center[0]},${m.center[1]}"><b>🗺 在主頁開啟此區</b><small>底圖切到郊遊圖設計</small></a>
       </div>
     </div>
   </div>`;
@@ -71,7 +79,7 @@ function renderIb(filter = "") {
         ${IB20000.links.map((l) => `<a class="file" href="${l.href}" target="_blank" rel="noopener"><b>${l.label}</b><small>官方網站</small></a>`).join("")}
       </div>
       <p class="notice" style="margin-top:12px">本系統地圖畫面已用官方地形圖 API 顯示同一套 iB 資料，設計路線不必等下載完成。下載原檔是為了 QGIS、離線備份或自行出圖。</p>
-      <input class="filter" id="hm20c-q" placeholder="搜尋 HM20C 圖幅，例如：11 香港、沙田、13 石壁" value="${filter.replace(/"/g, "&quot;")}" />
+      <input class="filter" id="hm20c-q" placeholder="搜尋 HM20C 圖幅，例如：11 香港、沙田、13 石壁" value="${esc(filter)}" />
     </section>
 
     <section class="card">
@@ -80,7 +88,7 @@ function renderIb(filter = "") {
       <div class="sheet-grid">
         ${hmSheets.map(sheetTileHM20C).join("")}
       </div>
-      ${hmSheets.length ? "" : `<p>沒有符合「${filter}」的 HM20C 圖幅。</p>`}
+      ${hmSheets.length ? "" : `<p>沒有符合「${esc(filter)}」的 HM20C 圖幅。</p>`}
     </section>
 
     <section class="card">
@@ -89,7 +97,7 @@ function renderIb(filter = "") {
       <div class="sheet-grid">
         ${ibTiles.map(tileIB20).join("")}
       </div>
-      ${ibTiles.length ? "" : `<p>沒有符合「${filter}」的 iB20000 分幅。</p>`}
+      ${ibTiles.length ? "" : `<p>沒有符合「${esc(filter)}」的 iB20000 分幅。</p>`}
     </section>`;
 }
 
@@ -111,14 +119,14 @@ function renderEhkg(filter = "") {
         <a class="file" href="${EHKG_META.guide}" target="_blank" rel="noopener"><b>使用者指南</b><small>如何用 Avenza／Adobe</small></a>
         <a class="file" href="${EHKG_META.legend}" target="_blank" rel="noopener"><b>圖例</b><small>1.4 MB</small></a>
       </div>
-      <input class="filter" id="ehkg-q" placeholder="搜尋地區，例如：尖沙咀、西貢、東涌" value="${filter.replace(/"/g, "&quot;")}" />
+      <input class="filter" id="ehkg-q" placeholder="搜尋地區，例如：尖沙咀、西貢、東涌" value="${esc(filter)}" />
     </section>
     ${
       groups
         .map(
           (g) => `<section class="card"><h2>${g.name}　<span class="badge-free">${g.files.length} 幅</span></h2><div class="file-grid">${g.files.map(fileCard).join("")}</div></section>`
         )
-        .join("") || `<section class="card"><p>沒有符合「${filter}」的圖幅。</p></section>`
+        .join("") || `<section class="card"><p>沒有符合「${esc(filter)}」的圖幅。</p></section>`
     }`;
 }
 
@@ -138,14 +146,14 @@ function renderCountryside(filter = "") {
         <a class="file" href="${COUNTRYSIDE_META.hiking}" target="_blank" rel="noopener"><b>遠足徑／封閉消息</b><small>hiking.gov.hk　出發前查看</small></a>
         <a class="file" href="index.html" target="_blank" rel="noopener"><b>在主頁用郊遊圖底圖設計</b><small>切到底圖「郊遊圖」即 OpenTopoMap</small></a>
       </div>
-      <input class="filter" id="country-q" placeholder="搜尋郊遊圖，例如：大嶼山、西貢、香港島" value="${filter.replace(/"/g, "&quot;")}" />
+      <input class="filter" id="country-q" placeholder="搜尋郊遊圖，例如：大嶼山、西貢、香港島" value="${esc(filter)}" />
     </section>
     <section class="card">
       <h2>5 幅郊遊圖　一格格按即下載（像街道圖）</h2>
       <div class="countryside-grid">
         ${maps.map(countrysideTile).join("")}
       </div>
-      ${maps.length ? "" : `<p>沒有符合「${filter}」的郊遊圖。</p>`}
+      ${maps.length ? "" : `<p>沒有符合「${esc(filter)}」的郊遊圖。</p>`}
     </section>`;
 }
 
@@ -158,9 +166,9 @@ const panels = {
 const root = document.getElementById("panel");
 function show(id, extra) {
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
-  const fn = panels[id];
-  if (!fn) {
-    root.innerHTML = `<section class="card"><p>未知分類 ${id}</p></section>`;
+  const fn = Object.prototype.hasOwnProperty.call(panels, id) ? panels[id] : null;
+  if (typeof fn !== "function") {
+    root.innerHTML = `<section class="card"><p>未知分類 ${esc(id)}</p></section>`;
     return;
   }
   root.innerHTML = fn(extra || "");
@@ -206,5 +214,5 @@ document.querySelector(".tabs").addEventListener("click", (e) => {
 // 支援 ?tab= 參數
 const params = new URLSearchParams(location.search);
 const tab = params.get("tab");
-if (tab && panels[tab]) show(tab);
+if (tab && Object.prototype.hasOwnProperty.call(panels, tab)) show(tab);
 else show("hm20c");
