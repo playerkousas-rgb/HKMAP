@@ -10,6 +10,7 @@
  */
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import {
   BUDGET,
   INTENTIONAL_ORPHANS,
@@ -28,15 +29,58 @@ import {
 } from "./lib.mjs";
 
 /* ---------- 1. 語法 ---------- */
+const ESM_COMPAT_ERROR = /Cannot use import statement outside a module|Unexpected token 'export'|Failed to load the ES module/i;
+const FLAG_UNSUPPORTED = /bad option|not allowed|Unknown option|invalid value/i;
+
+function firstErrorLines(raw) {
+  return String(raw || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ");
+}
+
+/**
+ * 檢查一個檔案嘅語法，回傳 { error } 或 { skipped }（null 代表 OK）。
+ *
+ * 背景：舊版 Node 嘅 `node --check file.js` 唔會查 package.json 嘅 `type: module`，
+ * 會把 ESM 誤報為語法錯誤。雲端建置（Vercel）嘅 Node 版本唔一定同本機一樣，
+ * 所以遇到 ESM 相容錯誤時改用 stdin＋`--input-type=module` 再檢查一次
+ * （Node ≥12 都支援），避免因為執行環境而令部署白白失敗。
+ */
+function checkSyntaxOf(file) {
+  const abs = path.join(ROOT, file);
+  const direct = spawnSync(process.execPath, ["--check", abs], { encoding: "utf8" });
+  if (direct.status === 0) return {};
+  const raw = `${direct.stderr || ""}${direct.stdout || ""}`;
+  if (!ESM_COMPAT_ERROR.test(raw)) return { error: firstErrorLines(raw) };
+
+  const viaStdin = spawnSync(process.execPath, ["--input-type=module", "--check"], {
+    encoding: "utf8",
+    input: fs.readFileSync(abs, "utf8"),
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  const stdinRaw = `${viaStdin.stderr || ""}${viaStdin.stdout || ""}`;
+  if (viaStdin.status === 0) return {};
+  if (FLAG_UNSUPPORTED.test(stdinRaw)) {
+    return { skipped: "呢個 Node 版本唔支援 ESM 語法檢查" };
+  }
+  return { error: firstErrorLines(stdinRaw) };
+}
+
 function checkSyntax(report) {
   const jsFiles = walkFiles().filter((f) => f.endsWith(".js") || f.endsWith(".mjs"));
+  let skipped = 0;
   for (const file of jsFiles) {
-    const res = spawnSync(process.execPath, ["--check", path.join(ROOT, file)], { encoding: "utf8" });
-    if (res.status !== 0) {
-      report.fail(`語法錯誤 ${file}：${(res.stderr || "").split("\n").slice(0, 4).join(" ").trim()}`);
+    const result = checkSyntaxOf(file);
+    if (result.error) report.fail(`語法錯誤 ${file}：${result.error}`);
+    if (result.skipped) {
+      skipped += 1;
+      report.warn(`${file} 語法檢查略過：${result.skipped}`);
     }
   }
-  report.note(`語法檢查：${jsFiles.length} 個 JS 檔案`);
+  report.note(`語法檢查：${jsFiles.length} 個 JS 檔案（Node ${process.versions.node}${skipped ? `，略過 ${skipped} 個` : ""}）`);
 }
 
 /* ---------- 2. 單元（hkgeo 純函式，唔需要 proj4） ---------- */

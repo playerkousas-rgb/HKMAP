@@ -50,7 +50,7 @@ npm run serve
 
 ## 技術形態與部署（防增肥）
 
-- **純靜態、零依賴、零打包**：`dependencies` 同 `devDependencies` 都係 `{}`，冇 `dist/`，Vercel 直接食根目錄（`outputDirectory` 用預設）。
+- **純靜態、零依賴、零打包**：`dependencies` 同 `devDependencies` 都係 `{}`，冇 `dist/`，Vercel 直接食根目錄（`vercel.json` 明寫 `outputDirectory: "."`，唔可以刪 — 見 `防增肥規範.md` 第 5 節）。
 - **執行期第三方庫全部用 CDN**：Leaflet 1.9.4、proj4js 2.11.0、Google Fonts（版本已經 pin 死）。
 - **檢查工具用 Node 內建模組寫**，唔會為咗 lint 而裝 ESLint：
 

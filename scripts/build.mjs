@@ -28,9 +28,20 @@ function verifyVercelConfig() {
     return {};
   }
 
-  if ("outputDirectory" in config) {
+  // outputDirectory 係「有 build command 之後」嘅必需品：
+  // Vercel 一跑 build 就會用 static-build pipeline，並要求 Output Directory 存在；
+  // 本網站係根目錄直接部署，所以一定要明確寫 "."，唔可以靠 dashboard 嘅預設值（可能仲係 public）。
+  if (config.outputDirectory !== ".") {
+    problems.push(
+      `vercel.json outputDirectory 必須係 "."（現在：${JSON.stringify(config.outputDirectory)}）；` +
+        "否則 Vercel 跑 build 之後會報 No Output Directory found"
+    );
+  } else {
     const dir = path.join(ROOT, config.outputDirectory);
     if (!fs.existsSync(dir)) problems.push(`vercel.json outputDirectory 指向唔存在嘅資料夾：${config.outputDirectory}`);
+  }
+  if (!config.buildCommand) {
+    problems.push("vercel.json 缺少 buildCommand：npm run build（部署前跑檢查）");
   }
   if (config.buildCommand && config.buildCommand !== "npm run build") {
     problems.push(`vercel.json buildCommand 唔係預期嘅 "npm run build"：${config.buildCommand}`);
@@ -211,7 +222,7 @@ async function main() {
   console.log("\n=== 部署設定 ===");
   console.log(`  vercel.json：cleanUrls=${config.cleanUrls ? "on" : "off"}、trailingSlash=${config.trailingSlash ?? "default"}`);
   console.log(`  建置指令：${config.buildCommand || "（未設定；Vercel 偵測到 npm run build 會自動執行）"}`);
-  console.log(`  輸出路徑：${config.outputDirectory || "根目錄（預設，冇 dist 要同步）"}`);
+  console.log(`  輸出路徑：${config.outputDirectory}（＝專案根目錄；網站冇獨立建置產物）`);
   console.log(`  執行期依賴：${Object.keys(pkg.dependencies || {}).length} 個（應為 0）`);
   console.log(`  header 規則：${(config.headers || []).length} 條`);
 
