@@ -187,10 +187,3 @@ export const EHKG_META = {
   legend: "https://www.landsd.gov.hk/doc/en/mapping/ehkg/individual_PDF/5_Legend.pdf",
   copyright: "https://www.landsd.gov.hk/tc/resources/mapping-information/mapping-teaching-resources/copyright.html",
 };
-
-export const FEATURE_IDEAS = [
-  { id: "print", title: "A4 紙圖＋CP 圓圈", for: "城市", note: "已做：策劃者放點，列印給參加者用紙圖玩。" },
-  { id: "card", title: "參加者控制卡（打孔空格）", for: "城市", note: "另頁列印到達時間／答案空格，不用手機。" },
-  { id: "master", title: "領袖答案圖", for: "城市", note: "同一張圖加坐標與正確路線，只給策劃者。" },
-  { id: "multi", title: "A／B／C 多條路線", for: "城市", note: "同一底圖分難度，分色套印。" },
-];

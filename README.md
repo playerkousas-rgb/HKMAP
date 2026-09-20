@@ -42,9 +42,27 @@
 
 ```bash
 python3 -m http.server 8080 --bind 0.0.0.0
+# 或
+npm run serve
 ```
 
 瀏覽器開啟該位址即可。圖磚由使用者瀏覽器直接向 `mapapi.geodata.gov.hk` 讀取。
+
+## 技術形態與部署（防增肥）
+
+- **純靜態、零依賴、零打包**：`dependencies` 同 `devDependencies` 都係 `{}`，冇 `dist/`，Vercel 直接食根目錄（`vercel.json` 明寫 `outputDirectory: "."`，唔可以刪 — 見 `防增肥規範.md` 第 5 節）。
+- **執行期第三方庫全部用 CDN**：Leaflet 1.9.4、proj4js 2.11.0、Google Fonts（版本已經 pin 死）。
+- **檢查工具用 Node 內建模組寫**，唔會為咗 lint 而裝 ESLint：
+
+| 指令 | 作用 |
+| --- | --- |
+| `npm run check` | 語法、測地／方格／比例單元測試、本機連結、DOM id 接線、死檔、部署預算 |
+| `npm run lint` | 除錯殘留、未轉義的使用者輸入、重複 `class`、死 CSS class、備份／暫存檔殘留 |
+| `npm run smoke` | 用 DOM 替身真正開一次 app、行完成條使用者流程（放 CP、拖移、返回／重做、鎖比例、列印、方格跳轉、清除暫存） |
+| `npm run build` | 跑齊前兩者＋驗證 `vercel.json`／`.vercelignore`／`package.json`，並印出實際上傳清單同容量 |
+| `npm run verify` | 三個一次跑齊（部署前最少要跑呢個） |
+
+改版前**請先讀 [`防增肥規範.md`](防增肥規範.md)**（鐵律、`.vercelignore` 禁區、`vercel.json` 唔好加嘅 header、改版 checklist）。Vercel 嘅建置指令已設為 `npm run build`，所以檢查唔過就唔會上線。
 
 ## 成員下載電子地圖
 

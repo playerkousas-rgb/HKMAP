@@ -1,0 +1,18 @@
+{
+  "name": "scout-system-hkmap",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scout System · 香港城市定向地圖 — 純靜態網站，零執行期依賴、零打包步驟",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "lint": "node scripts/lint.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "build": "node scripts/build.mjs",
+    "verify": "npm run check && npm run lint && npm run build",
+    "serve": "python3 -m http.server 8080 --bind 0.0.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
