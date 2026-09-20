@@ -573,7 +573,23 @@ el("btn-print").dispatch("click");
 await new Promise((resolve) => setTimeout(resolve, 260));
 expectEqual(report, printed, 1, "白紙內列印要即刻開列印對話框");
 
-/* ---------- 11. 快捷鍵 + 清除檢查點 + 清除暫存 ---------- */
+/* ---------- 11. 快捷鍵 + 對話框保護 + 清除檢查點 + 清除暫存 ---------- */
+const gridWasOn = el("btn-grid").classList.contains("on");
+el("btn-clear-cps").dispatch("click"); // 開確認對話框
+expect(report, el("confirm").classList.contains("open"), "清除檢查點要先確認");
+documentStub.querySelector = (selector) => (selector === ".modal.open" ? el("confirm") : selector === ".mapwrap" ? mapwrap : null);
+printed = 0;
+documentStub.dispatch("keydown", { key: "g", ctrlKey: false, target: { matches: () => false }, preventDefault() {} });
+expectEqual(report, el("btn-grid").classList.contains("on"), gridWasOn, "對話框打開時快捷鍵 G 唔可以轉方格網");
+documentStub.dispatch("keydown", { key: "p", ctrlKey: true, target: { matches: () => false }, preventDefault() {} });
+await new Promise((resolve) => setTimeout(resolve, 260));
+expectEqual(report, printed, 0, "對話框打開時 Ctrl+P 唔可以列印");
+documentStub.dispatch("keydown", { key: "z", ctrlKey: true, target: { matches: () => false }, preventDefault() {} });
+expectEqual(report, el("confirm").classList.contains("open"), true, "對話框打開時 Ctrl+Z 唔應該在背後返回");
+documentStub.dispatch("keydown", { key: "Escape", target: { matches: () => false }, preventDefault() {} });
+expectEqual(report, el("confirm").classList.contains("open"), false, "Escape 要關閉對話框");
+documentStub.querySelector = (selector) => (selector === ".mapwrap" ? mapwrap : null);
+
 const rowsBefore = (el("ctrl-list").innerHTML.match(/class="ctrl/g) || []).length;
 documentStub.dispatch("keydown", { key: "z", ctrlKey: true, shiftKey: false, target: { matches: () => false }, preventDefault() {} });
 expectEqual(report, (el("ctrl-list").innerHTML.match(/class="ctrl/g) || []).length, rowsBefore - 1, "Ctrl+Z 要返回上一動");

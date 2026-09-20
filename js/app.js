@@ -1420,15 +1420,25 @@ function bind() {
   });
 
   document.addEventListener("keydown", (event) => {
+    // 有對話框（條款／地圖來源／確認）打開時，唔可以喺後面偷偷返回、列印或轉工具。
+    const modalOpen = Boolean(document.querySelector(".modal.open"));
+    if (event.key === "Escape") {
+      closeClearMenu();
+      document.getElementById("confirm").classList.remove("open");
+      document.getElementById("about").classList.remove("open");
+      setTool("pan");
+      return;
+    }
+    if (modalOpen) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
-      if (event.target.matches("input, textarea")) return;
+      if (event.target.matches("input, textarea, select")) return;
       event.preventDefault();
       if (event.shiftKey) redo();
       else undo();
       return;
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y") {
-      if (event.target.matches("input, textarea")) return;
+      if (event.target.matches("input, textarea, select")) return;
       event.preventDefault();
       redo();
       return;
@@ -1438,13 +1448,8 @@ function bind() {
       doPrint();
       return;
     }
-    if (event.key === "Escape") {
-      closeClearMenu();
-      document.getElementById("confirm").classList.remove("open");
-      document.getElementById("about").classList.remove("open");
-      setTool("pan");
-    }
-    if (event.target.matches("input, textarea")) return;
+    // select 聚焦時打字係揀選項，唔應該當成快捷鍵
+    if (event.target.matches("input, textarea, select")) return;
     const mapKey = { 1: "hm20c", 2: "countryside", 3: "imagery", s: "start", c: "control", f: "finish", m: "measure", p: "pan" };
     if (event.key.toLowerCase() === "g" && !event.metaKey) {
       document.getElementById("btn-grid").click();
