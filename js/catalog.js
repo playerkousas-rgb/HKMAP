@@ -4,12 +4,12 @@ const PDF = "https://www.landsd.gov.hk/doc/en/mapping/ehkg/MapPages/GeoPDF";
 export const IB20000 = {
   title: "HM20C 電子版＝iB20000 數碼地形圖",
   price: "免費 HK$0（2026 年 2 月價目表）",
-  formats: ["GeoTIFF（較易列印／QGIS）", "GML（開放向量）", "FGDB（ArcGIS）", "DWG / DGN（CAD）"],
+  formats: ["GeoTIFF（圖片，最易列印；沒有獨立等高線）", "GML（開放向量，含等高線 ELEVLINE）", "FGDB（ArcGIS／QGIS 都可開，含等高線）", "DWG / DGN（CAD）"],
   sheets: "全港約 18 幅，比例 1:20 000（與 HM20C 同一套測繪；紙本印 UTM 方格 KK／QK）",
   steps: [
     "開啟香港地圖服務 2.0，右上角「登入／登記」→ 個人用戶，完成電郵驗證。",
     "進入「空間數據與地形圖」，搜尋 iB20000。",
-    "選格式：新手用 QGIS 排版／加圖框，建議 GeoTIFF；想逐層編輯地物才選 GML（開放向量）或 FGDB（ArcGIS）。",
+    "選格式：只要底圖＋框線，選 GeoTIFF 最簡單；要等高線＋高度數字（或逐層改樣式），一定要選 GML 或 FGDB——GeoTIFF 是圖片，抽不出等高線。",
     "加入購物車（應付金額應為 $0），通過驗證碼後下載。請用 Chrome／Edge／Firefox。",
     "使用時必須標示 Map from Lands Department，並遵守地政總署條款。",
   ],

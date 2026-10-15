@@ -70,7 +70,7 @@ function renderIb(filter = "") {
       <div class="file-grid" style="margin-top:12px">
         ${IB20000.links.map((l) => `<a class="file" href="${l.href}" target="_blank" rel="noopener"><b>${l.label}</b><small>官方網站</small></a>`).join("")}
       </div>
-      <p class="notice" style="margin-top:12px">本系統地圖畫面已用官方地形圖 API 顯示同一套 iB 資料，設計路線不必等下載完成。下載原檔是為了 QGIS、離線備份或自行出圖。<a href="download.html?tab=qgis"><strong>下載 QGIS 及加圖框線教學 →</strong></a></p>
+      <p class="notice" style="margin-top:12px">本系統地圖畫面已用官方地形圖 API 顯示同一套 iB 資料，設計路線不必等下載完成。下載原檔是為了 QGIS、離線備份或自行出圖。<a href="download.html?tab=qgis"><strong>QGIS 簡易教學（框線＋等高線）→</strong></a></p>
       <input class="filter" id="hm20c-q" placeholder="搜尋 HM20C 圖幅，例如：11 香港、沙田、13 石壁" value="${filter.replace(/"/g, "&quot;")}" />
     </section>
 
@@ -149,52 +149,217 @@ function renderCountryside(filter = "") {
     </section>`;
 }
 
+/* ---------- QGIS 簡易教學：(1)(2)(3)… 逐步做，每步有「✔ 檢查」 ---------- */
+
+/** QGIS 介面名稱：英文（大部分人用英文介面）＋括號內 QGIS 繁體中文介面名稱。 */
+function ui(en, zh) {
+  return `<b class="ui">${en}</b>${zh ? `<span class="ui-zh">（${zh}）</span>` : ""}`;
+}
+
+const QGIS_PARTS = [
+  {
+    id: "qgis-load",
+    tag: "A",
+    title: "載入地圖",
+    note: "必做　·　(1)–(4)",
+    steps: [
+      {
+        title: "安裝 QGIS",
+        do: [
+          `到 <a href="https://qgis.org/download/" target="_blank" rel="noopener">QGIS 官網</a>下載 <strong>Long Term Release（LTR 長期版）</strong>，安裝後開啟。`,
+        ],
+        check: `看到 QGIS 主畫面，左下角有 ${ui("Layers", "圖層")} 面板。`,
+      },
+      {
+        title: "下載 iB20000，再解壓",
+        do: [
+          `在本頁「<a href="download.html?tab=hm20c">1. 電子 HM20C</a>」進入香港地圖服務 2.0，選活動地區的圖幅。`,
+          `選格式：只要底圖 → <strong>GeoTIFF</strong>；要等高線 → <strong>GML</strong> 或 <strong>FGDB</strong>。`,
+          `下載後，在 ZIP 檔按右鍵 →「全部解壓縮」。`,
+        ],
+        check: `資料夾內有 <code>.tif</code>（GeoTIFF）、<code>.gml</code>（GML）或 <code>.gdb</code> 資料夾（FGDB）。`,
+      },
+      {
+        title: "把地圖拖入 QGIS",
+        do: [
+          `把 <code>.tif</code>／<code>.gml</code> 檔直接拖進 QGIS 中間的地圖區；FGDB 就拖整個 <code>.gdb</code> 資料夾。`,
+          `如彈出 ${ui("Select Items to Add", "選擇要新增的專案")} 視窗：剔選要用的圖層（要等高線就一定要剔 <strong>ELEVLINE</strong>），再按 ${ui("Add Layers", "新增圖層")}。`,
+        ],
+        check: `${ui("Layers")} 面板出現新圖層，地圖區看到地圖。`,
+      },
+      {
+        title: "縮放到地圖，儲存專案",
+        do: [
+          `在圖層上按右鍵 → ${ui("Zoom to Layer(s)", "縮放至圖層")}。`,
+          `選單 ${ui("Project → Save", "專案 → 儲存")}，存成 <code>.qgz</code> 檔。`,
+        ],
+        check: `看到整幅地圖；下次開啟 <code>.qgz</code> 會回到同一畫面。`,
+        hint: `座標系統跟隨檔案即可（香港 1980 方格 EPSG:2326），不用自己更改。`,
+      },
+    ],
+  },
+  {
+    id: "qgis-contour",
+    tag: "B",
+    title: "等高線＋高度數字",
+    note: "要用 GML／FGDB　·　(5)–(8)",
+    intro: `<p class="warn qg-pre"><strong>前提：載入時必須選 GML 或 FGDB 格式。</strong>等高線是「向量」資料（一條條線，每條都記住高度）。GeoTIFF 只是一張圖片，QGIS 抽不出裏面的線，也無法另外加上高度數字。</p>`,
+    steps: [
+      {
+        title: "確認已載入等高線圖層",
+        do: [
+          `在 ${ui("Layers")} 面板找 <strong>ELEVLINE</strong>（iB20000 的等高線，每 20 m 一條）。其他資料可能叫 <code>Contour</code> 或其他與高度有關的名稱。`,
+          `找不到？重做 (3)，記得剔選 ELEVLINE。`,
+        ],
+        check: `圖層名稱左邊的圖示是「一條線」，不是「一張圖片」。如果是圖片，即是載入了 GeoTIFF，要改下載 GML／FGDB。`,
+      },
+      {
+        title: "改顏色和粗幼",
+        do: [
+          `在 ELEVLINE 上按右鍵 → ${ui("Properties…", "屬性…")} → 左邊選 ${ui("Symbology", "符號學")}。`,
+          `${ui("Color", "顏色")} 選棕色或赭色（例如 <code>#B5651D</code>），${ui("Width", "寬度")} 填 <strong>0.2</strong> mm → 按 ${ui("OK", "確定")}。`,
+        ],
+        check: `地圖上的等高線變成棕色幼線。`,
+      },
+      {
+        title: "加上高度數字",
+        do: [
+          `再開 ${ui("Properties…", "屬性…")} → 左邊選 ${ui("Labels", "標註")}。`,
+          `最上方的選單選 ${ui("Single Labels", "單一標註")}。`,
+          `${ui("Value", "值")} 選高度欄位 <strong>HEIGHT</strong>（其他資料可能叫 <code>CONTOUR</code>）。`,
+          `按 ${ui("Apply", "套用")}，視窗先不要關，接着做 (8)。`,
+        ],
+        check: `放大地圖，等高線旁出現 20、40、60… 等數字（單位：米）。`,
+      },
+      {
+        title: "讓數字沿線排列",
+        do: [
+          `同一視窗按 ${ui("Placement", "放置")}。`,
+          `${ui("Mode", "模式")} 選 ${ui("Curved", "曲線")}（數字跟着線彎）或 ${ui("Parallel", "平行")}；${ui("Allowed positions", "允許的位置")} 只剔 ${ui("On line", "線上")}。`,
+          `按 ${ui("Apply", "套用")} → ${ui("OK", "確定")}。`,
+        ],
+        check: `放大地圖，每條等高線上都有順着線方向的高度數字。`,
+      },
+    ],
+    tip: `<strong>可選：令等高線更易讀</strong>
+      <ul>
+        <li><b>數字太密</b>：在 (7) 的 ${ui("Value")} 欄改為輸入 <code>if("HEIGHT" % 100 = 0, "HEIGHT", '')</code>，只標每 100 m 的線。</li>
+        <li><b>數字被線蓋住</b>：${ui("Labels")} → ${ui("Buffer", "環域")} → 剔 ${ui("Draw text buffer", "繪製文字緩衝區")}，數字會有白邊。</li>
+        <li><b>每 100 m 加粗（計曲線）</b>：${ui("Symbology")} 最上方選 ${ui("Rule-based", "基於規則")} → 按 <b>＋</b> 加一條規則，Filter 填 <code>"HEIGHT" % 100 = 0</code>，寬度 0.4 mm。</li>
+        <li><b>山頂高度點</b>：用 (3) 的方法再載入 <strong>ELEVSYMBOL</strong>（高程點），${ui("Labels")} 的 ${ui("Value")} 同樣選 HEIGHT。</li>
+      </ul>
+      <p style="margin:6px 0 0">不想裝 QGIS？<a href="index.html?contours=1">Scout System 設計頁</a>右上角「等高線」按一下就可以顯示／隱藏 iB20000 等高線，並連數字一起列印。</p>`,
+  },
+  {
+    id: "qgis-print",
+    tag: "C",
+    title: "A3／A4 版面、框線、列印",
+    note: "(9)–(12)",
+    steps: [
+      {
+        title: "開列印版面，選紙張",
+        do: [
+          `選單 ${ui("Project → New Print Layout…", "專案 → 新增列印版面配置…")}，輸入名稱 → ${ui("OK", "確定")}。`,
+          `在白紙上按右鍵 → ${ui("Page Properties…", "頁面屬性…")}：${ui("Size", "大小")} 選 <strong>A4</strong> 或 <strong>A3</strong>，${ui("Orientation", "方向")} 選 Landscape（橫式）或 Portrait（直式）。`,
+        ],
+        check: `版面視窗中間的白紙變成你要的大小和方向。`,
+      },
+      {
+        title: "放地圖，加上四邊框線",
+        do: [
+          `左邊工具列按 ${ui("Add Map", "新增地圖")}，在白紙上拖出一個長方形，地圖就會放進去。`,
+          `右邊 ${ui("Item Properties")}（中文介面顯示為「專案屬性」）向下捲 → 剔 ${ui("Frame", "框架")}，${ui("Color", "顏色")} 選黑色，${ui("Thickness", "厚度")} 填 <strong>0.3</strong> mm。`,
+        ],
+        check: `地圖四邊出現黑色框線（沒有剔 Frame 就不會有框線）。`,
+        hint: `框線只加在列印版面上，不會改動官方下載的原檔。`,
+      },
+      {
+        title: "設定比例（可選：方格網）",
+        do: [
+          `${ui("Item Properties")} → ${ui("Scale", "比例尺")} 輸入比例分母，例如 <code>5000</code>＝1:5 000、<code>20000</code>＝1:20 000。`,
+          `要方格網：${ui("Grids", "方格")} → 按 <b>＋</b> → ${ui("Modify Grid…", "修改網格…")} → ${ui("CRS")} 選 <strong>EPSG:32650</strong>（活動在東經 114° 以東）或 <strong>EPSG:32649</strong>（以西）→ ${ui("Interval", "間隔")} X、Y 都填 <strong>1000</strong>（1 km）→ 剔 ${ui("Draw Coordinates", "繪製座標")}。`,
+        ],
+        check: `比例正確；開了方格網就看到 1 km 方格線和座標數字。`,
+      },
+      {
+        title: "加版權字，匯出 PDF",
+        do: [
+          `用 ${ui("Add Label", "新增標籤")} 寫上圖名及 <strong>Map from Lands Department</strong>（必須標示）。`,
+          `選單 ${ui("Layout → Export as PDF…", "圖面配置 → 匯出為PDF…")} → 存檔。`,
+          `列印時選同一紙張，縮放選 <strong>100%／實際大小</strong>（不要選「符合頁面」）。`,
+        ],
+        check: `用尺量印出來的 1 km 方格：1:5 000 應為 20 cm，1:20 000 應為 5 cm。`,
+      },
+    ],
+  },
+];
+
+function qgisStep(step, no) {
+  return `<li class="qg-step" id="qgis-step-${no}">
+    <div class="qg-no" aria-hidden="true">(${no})</div>
+    <div class="qg-body">
+      <h3><span class="sr-only">第 ${no} 步：</span>${step.title}</h3>
+      <ul class="qg-do">${step.do.map((d) => `<li>${d}</li>`).join("")}</ul>
+      <p class="qg-check"><b>✔ 檢查</b>${step.check}</p>
+      ${step.hint ? `<p class="qg-hint">💡 ${step.hint}</p>` : ""}
+    </div>
+  </li>`;
+}
+
 function renderQgisGuide() {
+  let no = 0;
+  const parts = QGIS_PARTS.map((part) => {
+    const steps = part.steps.map((step) => qgisStep(step, (no += 1))).join("");
+    return `
+    <section class="card qg-part" id="${part.id}">
+      <div class="qg-part-head">
+        <span class="qg-part-tag">${part.tag}</span>
+        <h2>${part.title}</h2>
+        <span class="qg-part-note">${part.note}</span>
+      </div>
+      ${part.intro || ""}
+      <ol class="qg-steps">${steps}</ol>
+      ${part.tip ? `<div class="qgis-tip">${part.tip}</div>` : ""}
+    </section>`;
+  }).join("");
+
   return `
     <section class="card qgis-intro" id="qgis-install">
-      <h2>QGIS 安裝＋加圖框線教學</h2>
-      <p class="ok"><strong>先講重點：</strong>iB20000 下載的是有座標的地圖資料，不是已排版的紙圖。要加四邊圖框、方格網及設定 A3/A4，請在 QGIS 的「列印版面配置（Print Layout）」處理；只在地圖主畫面看圖，不會自動出現圖框。</p>
+      <h2>QGIS 簡易教學：框線＋等高線</h2>
+      <p class="qg-lead">跟着 (1)、(2)、(3)… 逐步做；每步做完，對一對「✔ 檢查」才做下一步。先選你要做甚麼：</p>
+      <div class="qg-choose">
+        <a class="qg-route" href="#qgis-load">
+          <b>只要底圖＋框線＋列印</b>
+          <span>下載 <strong>GeoTIFF</strong> → 做 A → C</span>
+        </a>
+        <a class="qg-route is-contour" href="#qgis-contour">
+          <b>要等高線＋高度數字</b>
+          <span>下載 <strong>GML</strong> 或 <strong>FGDB</strong> → 做 A → B → C</span>
+        </a>
+      </div>
+      <p class="warn"><strong>要等高線，一定要選 GML 或 FGDB。</strong>等高線是向量資料（線），GeoTIFF 是圖片，抽不出線，也加不到高度數字。</p>
       <div class="file-grid qgis-links">
-        <a class="file qgis-download" href="https://qgis.org/download/" target="_blank" rel="noopener"><b>📥 下載 QGIS（官方網站）</b><small>Windows、macOS、Linux；一般新手建議選 Long Term Release（LTR）</small></a>
-        <a class="file" href="https://docs.qgis.org/latest/en/docs/user_manual/" target="_blank" rel="noopener"><b>QGIS 官方使用手冊</b><small>更多版本及功能說明</small></a>
-        <a class="file" href="download.html?tab=hm20c"><b>返回 iB20000 官方下載</b><small>選 GeoTIFF 或 GML 等格式</small></a>
+        <a class="file qgis-download" href="https://qgis.org/download/" target="_blank" rel="noopener"><b>📥 下載 QGIS（官方網站）</b><small>Windows、macOS、Linux；新手選 Long Term Release（LTR）</small></a>
+        <a class="file" href="download.html?tab=hm20c"><b>iB20000 官方下載</b><small>GeoTIFF、GML、FGDB 都免費</small></a>
+        <a class="file" href="https://docs.qgis.org/latest/en/docs/user_manual/" target="_blank" rel="noopener"><b>QGIS 官方使用手冊</b><small>更多功能說明</small></a>
         <a class="file" href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener"><b>地政總署使用條款</b><small>列印／分享前請確認版權要求</small></a>
       </div>
+      <p class="notice" style="margin:10px 0 0">按鈕名稱以 QGIS 英文介面為主，括號內是 QGIS 繁體中文介面的名稱；不同版本可能略有不同。</p>
     </section>
-
-    <section class="card">
-      <h2>一、下載地圖並載入 QGIS</h2>
-      <ol class="ol-steps qgis-steps">
-        <li>在「1. 電子 HM20C」登入香港地圖服務 2.0，選擇活動地區的 <strong>iB20000</strong> 圖幅，按官方指示下載。簡單出圖可先選 <strong>GeoTIFF</strong>；需要逐層調整道路、地物樣式才選 GML／FGDB。</li>
-        <li>如果下載的是 ZIP，先在電腦解壓縮；GeoTIFF 的 <code>.tif</code> 檔及同一資料夾的附屬檔案請一併保留。</li>
-        <li>開啟 QGIS：選單「圖層 → 加入圖層 → 加入 Raster Layer（GeoTIFF）」；若下載 GML，選「加入 Vector Layer」，再選檔案並按「加入」。FGDB 通常要選取解壓後的 <code>.gdb</code> 資料夾，再揀要載入的圖層。</li>
-        <li>圖層載入後，在圖層清單按右鍵，選「Layer CRS → Set Project CRS from Layer（以圖層 CRS 設定專案座標系統）」。先跟隨下載檔的座標系統；只有中繼資料明確寫出時才選 EPSG:2326（Hong Kong 1980 Grid System），不要盲目把座標系統改成 Google/Web Mercator。</li>
-        <li>按工具列「縮放至圖層」看完整圖幅，確認底圖顯示正常，再用「專案 → 儲存」存成 <code>.qgz</code> 專案檔。</li>
-      </ol>
-      <p class="warn"><strong>看不到地圖？</strong>先確認 ZIP 已解壓、選對 .tif／GML 檔，並按「縮放至圖層」。若 GML 沒有樣式或圖層很多，初學者可改用 GeoTIFF 先完成圖框及列印。</p>
-    </section>
-
-    <section class="card">
-      <h2>二、設定 A3/A4 紙張，為地圖加上四邊框線</h2>
-      <ol class="ol-steps qgis-steps">
-        <li>選「專案 → 新增列印版面配置（Project → New Print Layout）」，輸入版面名稱。</li>
-        <li>在空白紙張上按右鍵開啟頁面屬性，選紙張 <strong>A3</strong> 或 <strong>A4</strong>，再選直向／橫向。</li>
-        <li>在版面左側工具列選「加入地圖（Add Map）」，在紙上拖曳一個矩形；地圖會放進這個矩形圖框。拖動地圖項目可調整位置／範圍。</li>
-        <li>選取剛加入的地圖，在右側「項目屬性（Item Properties）」勾選 <strong>Frame（框線）</strong>。建議先用黑色、約 <strong>0.3 mm</strong> 線寬；這條線就是地圖四周的外框。只載入底圖而未勾選 Frame，不會有外框。</li>
-        <li>如要印比例尺，可在版面工具列加入「比例尺（Add Scale Bar）」；再加入「標籤（Add Label）」寫上圖名及 <strong>Map from Lands Department</strong> 版權標示。</li>
-      </ol>
-      <div class="qgis-tip"><strong>注意：</strong>QGIS 的圖框是在「列印版面配置」的地圖項目上設定，不是替 GeoTIFF 原檔永久畫線；修改版面不會改動官方下載檔。</div>
-    </section>
-
-    <section class="card">
-      <h2>三、（可選）加 UTM 方格網及匯出 PDF</h2>
-      <ol class="ol-steps qgis-steps">
-        <li>在列印版面選取地圖項目，打開「項目屬性 → Grids（網格）」，按 <strong>＋</strong> 新增網格並啟用。要跟 Scout System 的 UTM 方格，活動地點在 114° 經線以西選 WGS 84 / UTM zone 49N（EPSG:32649），以東選 zone 50N（EPSG:32650）；香港跨兩個帶，按活動區選一個即可。間距設 <strong>1,000 m</strong> 是 1 km 方格，<strong>100 m</strong> 則更密。若只要一般方格，可選下載圖層所用的米制投影 CRS；不要用經緯度格網當作米距。</li>
-        <li>在網格設定內開啟格線、外框或座標註記；調整線色／線寬及標籤位置，避免蓋住地圖細節。不同 QGIS 版本的按鈕名稱可能略有不同。</li>
-        <li>按「匯出為 PDF（Export as PDF）」，確認版面是 A3/A4 及方向正確。列印時選相同紙張、縮放 100%；如要精確比例，先在地圖項目的屬性設定比例尺，再用尺核對輸出。</li>
-      </ol>
-      <p class="notice">若只需要現成城市街道圖，可改用上方「e香港街」官方 GeoPDF；若要自行選比例、加框線、方格及標註，則用 iB20000＋QGIS。官方底圖版權與署方條款仍然適用。</p>
-      <a class="cta-link" href="download.html?tab=hm20c">← 返回 iB20000 下載</a>
+    ${parts}
+    <section class="card qg-faq">
+      <h2>常見問題</h2>
+      <dl>
+        <dt>看不到地圖？</dt>
+        <dd>先確認 ZIP 已解壓，然後做 (4) ${ui("Zoom to Layer(s)", "縮放至圖層")}。</dd>
+        <dt>找不到 ELEVLINE，或圖示是一張圖片？</dt>
+        <dd>你載入的是 GeoTIFF。重新下載 <strong>GML</strong> 或 <strong>FGDB</strong>，再做 (3)。</dd>
+        <dt>高度數字不出現？</dt>
+        <dd>(7) 要選 ${ui("Single Labels", "單一標註")}，${ui("Value", "值")} 要選 <strong>HEIGHT</strong>；然後放大地圖再看。</dd>
+        <dt>只需要現成城市街道圖？</dt>
+        <dd>可改用「<a href="download.html?tab=ehkg">2. e香港街</a>」官方 GeoPDF；要自選比例、加框線、方格及等高線，才用 iB20000＋QGIS。</dd>
+      </dl>
+      <a class="cta-link" href="#qgis-install">↑ 回到頂部</a>
     </section>`;
 }
 
@@ -206,7 +371,7 @@ const panels = {
 };
 
 const root = document.getElementById("panel");
-function show(id, extra) {
+function show(id, extra, opts = {}) {
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
   const fn = panels[id];
   if (!fn) {
@@ -214,6 +379,12 @@ function show(id, extra) {
     return;
   }
   root.innerHTML = fn(extra || "");
+
+  // 例如 download.html?tab=qgis#qgis-contour：首次開啟時跳到指定段落。
+  if (opts.scrollToHash && location.hash.length > 1) {
+    const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (target) requestAnimationFrame(() => target.scrollIntoView({ block: "start" }));
+  }
 
   if (id === "ehkg") {
     const input = document.getElementById("ehkg-q");
@@ -253,8 +424,8 @@ document.querySelector(".tabs").addEventListener("click", (e) => {
   if (b) show(b.dataset.tab);
 });
 
-// 支援 ?tab= 參數
+// 支援 ?tab= 參數；只有 #qgis-… 錨點時亦自動開 QGIS 教學。
 const params = new URLSearchParams(location.search);
-const tab = params.get("tab");
-if (tab && panels[tab]) show(tab);
+const tab = params.get("tab") || (location.hash.startsWith("#qgis") ? "qgis" : null);
+if (tab && panels[tab]) show(tab, "", { scrollToHash: true });
 else show("hm20c");

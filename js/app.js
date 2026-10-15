@@ -24,6 +24,7 @@ import {
   zoomForScale,
 } from "./hkgeo.js";
 import { drawOverprint, orderedControls as orderControls } from "./overprint.js";
+import { CONTOUR_MIN_ZOOM, createContourOverlay } from "./contours.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
@@ -39,6 +40,9 @@ const state = {
   lang: "zh",
   gridOn: true,
   gridLabelsOn: true,
+  // 等高線（iB20000 ELEVLINE，每 20 m）：預設關閉，用家開咗會記住。
+  contoursOn: false,
+  contourLabelsOn: true,
   labelsOn: true,
   linesOn: true,
   leaderOn: false,
@@ -395,6 +399,22 @@ const countryside = L.tileLayer(COUNTRYSIDE_TILE_URL, countrysideTileOptions());
 const courseLayer = L.layerGroup().addTo(map);
 const measureLayer = L.layerGroup().addTo(map);
 const gridLayer = L.layerGroup().addTo(map);
+/** 方格數字的位置（等高線高度數字會避開）。 */
+let gridLabelPoints = [];
+let contourErrorShown = false;
+
+/* 等高線疊加層：底圖之上、方格網／地名／路線套印之下；開關見 setContours()。 */
+const contours = createContourOverlay(map, {
+  onStatus(status) {
+    syncContourUi(status);
+    if (state.contoursOn && status.phase === "error" && !contourErrorShown) {
+      contourErrorShown = true;
+      toast(t("等高線資料暫時載入唔到（網絡／Esri HK 公開圖層），稍後會自動再試。", "Contour data could not be loaded right now; it will retry automatically."));
+    }
+    if (status.phase === "ready") contourErrorShown = false;
+  },
+});
+contours.setAvoidProvider(contourAvoidPoints);
 
 function applyBasemap() {
   [basemap, imagery, countryside].forEach((l) => {
@@ -412,6 +432,7 @@ function applyBasemap() {
   document.querySelectorAll(".basemaps button").forEach((b) => {
     b.classList.toggle("active", b.dataset.layer === state.layer);
   });
+  contours.setBasemap(state.layer);
   renderGrid();
 }
 
@@ -629,7 +650,13 @@ function fmtLen(m) {
 /* ---------- UTM 方格網與方格數字 ---------- */
 function renderGrid() {
   gridLayer.clearLayers();
-  if (!state.gridOn) return;
+  gridLabelPoints = [];
+  if (state.gridOn) drawGrid();
+  // 方格數字位置變咗 → 等高線高度數字重新避開。
+  contours.refreshLabels();
+}
+
+function drawGrid() {
   const b = map.getBounds();
   const step = map.getZoom() >= 15 ? 100 : 1000;
   const major = step === 1000;
@@ -765,6 +792,101 @@ function labelLineAt(zone, lngW, lngE, fixedCoord, otherCoord, axis, step, color
       iconAnchor: axis === "east" ? [21, 0] : [0, 9],
     }),
   }).addTo(gridLayer);
+  // 數字框中心（相對錨點，px）：東距數字喺錨點下面，北距數字喺錨點右面。
+  gridLabelPoints.push({ lat: ll.lat, lng: ll.lng, r: 23, dx: axis === "east" ? 0 : 21, dy: axis === "east" ? 9 : 0 });
+}
+
+/* ---------- 等高線（iB20000 ELEVLINE，每 20 m；可開關） ---------- */
+const CONTOUR_CHIP_TEXT = {
+  off: "等高線",
+  loading: "等高線 載入中…",
+  ready: "等高線",
+  partial: "等高線（部分）",
+  zoom: "等高線（請放大）",
+  error: "等高線（載入失敗）",
+};
+
+/** 開／關等高線（右上角「等高線」、左欄勾選、快捷鍵 E 共用）。 */
+function setContours(on, { silent = false } = {}) {
+  state.contoursOn = Boolean(on);
+  contours.setLabels(state.contourLabelsOn);
+  contours.setEnabled(state.contoursOn);
+  syncContourUi();
+  persist();
+  if (silent) return;
+  if (!state.contoursOn) {
+    toast(t("已隱藏等高線", "Contours hidden"));
+  } else if (contours.status().phase === "zoom") {
+    toast(
+      t(
+        `等高線已開：放大至約 ${contourMinScaleLabel()} 或更大比例先會顯示`,
+        `Contours on — zoom in to about ${contourMinScaleLabel()} or larger to see them`
+      )
+    );
+  } else {
+    toast(t("顯示等高線（iB20000，每 20 m；粗線每 100 m）", "Contours shown (iB20000, 20 m interval, bold every 100 m)"));
+  }
+}
+
+/** 等高線開始顯示的比例（約 1:33,000，按目前緯度計）。 */
+function contourMinScaleLabel() {
+  const s = scaleDenominator(map.getCenter().lat, CONTOUR_MIN_ZOOM);
+  return scaleLabel(Math.round(s / 1000) * 1000);
+}
+
+function syncContourUi(status = contours.status()) {
+  const on = state.contoursOn;
+  const phase = on ? status.phase : "off";
+  const chip = document.getElementById("btn-contours");
+  if (chip) {
+    chip.classList.toggle("on", on);
+    chip.classList.toggle("dim", on && (phase === "zoom" || phase === "error"));
+    chip.setAttribute("aria-pressed", String(on));
+    chip.textContent = CONTOUR_CHIP_TEXT[phase] || "等高線";
+  }
+  const box = document.getElementById("opt-contours");
+  if (box) box.checked = on;
+  const labelsBox = document.getElementById("opt-contour-labels");
+  if (labelsBox) {
+    labelsBox.checked = state.contourLabelsOn;
+    labelsBox.disabled = !on;
+  }
+  const note = document.getElementById("contour-status");
+  if (note) note.innerHTML = contourNote(phase, status);
+  // 紙圖底部圖例：真係見到等高線先印「棕線＝等高線」。
+  document.body.classList.toggle("contours-on", on && ["ready", "partial", "loading"].includes(phase));
+}
+
+function contourNote(phase, status) {
+  const guide = `<a href="download.html?tab=qgis#qgis-contour">QGIS 等高線教學</a>`;
+  switch (phase) {
+    case "loading":
+      return `等高線載入中（${status.loaded}/${status.total}）…`;
+    case "ready":
+      return `已顯示等高線：每 20 m 一條，粗線每 100 m，數字＝高度（米）。會照樣印落紙圖；再按一次「等高線」即可隱藏。`;
+    case "partial":
+      return `部分等高線未能載入，稍後會自動再試。`;
+    case "zoom":
+      return `等高線已開，但比例太細：放大至約 <strong>${contourMinScaleLabel()}</strong> 或更大比例先會顯示。`;
+    case "error":
+      return `等高線資料暫時載入唔到（網絡／Esri HK 公開圖層），稍後會自動再試。`;
+    default:
+      return `等高線來自地政總署 iB20000（每 20 m）。想喺 QGIS 自己加等高線：睇 ${guide}。`;
+  }
+}
+
+/** 高度數字要避開的位置：檢查點圓圈＋編號、起點、終點、方格數字（px）。 */
+function contourAvoidPoints() {
+  const points = [];
+  for (const c of state.course.controls) {
+    if (c.kind === "control") {
+      points.push({ lat: c.lat, lng: c.lng, r: 22, dx: 2, dy: 0 });
+      points.push({ lat: c.lat, lng: c.lng, r: 14, dx: 28, dy: -10 });
+    } else {
+      points.push({ lat: c.lat, lng: c.lng, r: c.kind === "finish" ? 22 : 18 });
+    }
+  }
+  return points.concat(gridLabelPoints);
 }
 
 /* ---------- course graphics ---------- */
@@ -806,6 +928,7 @@ function renderCourse() {
   });
   renderSheetInfo();
   updateOffPaper();
+  contours.refreshLabels();
 }
 
 function addControl(lat, lng, kind) {
@@ -1116,19 +1239,23 @@ async function doPrint() {
       if (!ok) return;
     }
   }
-  // 畫面白紙本身已用真實 mm 排版（＝列印頁），唔使改尺寸；只等圖磚載入完先開打印對話框。
+  // 畫面白紙本身已用真實 mm 排版（＝列印頁），唔使改尺寸；只等圖磚（及等高線）載入完先開打印對話框。
   map.invalidateSize();
-  await waitForTiles();
+  await waitForTiles(state.contoursOn ? 10000 : 4000);
+  if (state.contoursOn && contours.isBusy()) {
+    toast(t("部分等高線仲未載入完成，印出嚟可能欠缺等高線", "Some contours are still loading and may be missing from the print"));
+  }
   setTimeout(() => window.print(), 150);
 }
 
-/** 等目前顯示中的圖層載入完（最多約 4 秒），避免列印出未載入的灰格。 */
+/** 等目前顯示中的圖層（及等高線）載入完（預設最多約 4 秒），避免列印出未載入的灰格。 */
 function waitForTiles(timeout = 4000) {
   const layers = [basemap, imagery, countryside, labels].filter((layer) => map.hasLayer(layer));
   const started = Date.now();
   return new Promise((resolve) => {
     const check = () => {
-      const loading = layers.some((layer) => typeof layer.isLoading === "function" && layer.isLoading());
+      const loading =
+        layers.some((layer) => typeof layer.isLoading === "function" && layer.isLoading()) || contours.isBusy();
       if (!loading || Date.now() - started > timeout) resolve();
       else setTimeout(check, 120);
     };
@@ -1266,6 +1393,7 @@ function persist() {
   all.layer = state.layer;
   all.previewMode = state.previewMode;
   all.screenWidthCm = state.screenWidthCm;
+  all.contours = { on: state.contoursOn, labels: state.contourLabelsOn };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
 }
 
@@ -1373,6 +1501,14 @@ function bind() {
     state.leaderOn = event.target.checked;
     document.body.classList.toggle("leader", state.leaderOn);
   });
+  document.getElementById("opt-contours").addEventListener("change", (event) => {
+    setContours(event.target.checked);
+  });
+  document.getElementById("opt-contour-labels").addEventListener("change", (event) => {
+    state.contourLabelsOn = event.target.checked;
+    contours.setLabels(state.contourLabelsOn);
+    persist();
+  });
   document.getElementById("ctrl-list").addEventListener("click", (event) => {
     const del = event.target.closest("[data-del]");
     if (del) {
@@ -1403,6 +1539,7 @@ function bind() {
     if (checkbox) checkbox.checked = state.gridOn;
     renderGrid();
   });
+  document.getElementById("btn-contours").addEventListener("click", () => setContours(!state.contoursOn));
   document.getElementById("btn-fit-course").addEventListener("click", fitCourse);
   document.getElementById("offpaper-chip").addEventListener("click", fitCourse);
   document.getElementById("scale-select").addEventListener("change", (event) => {
@@ -1559,6 +1696,10 @@ function bind() {
       document.getElementById("btn-grid").click();
       return;
     }
+    if (event.key.toLowerCase() === "e" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      setContours(!state.contoursOn);
+      return;
+    }
     if (mapKey[event.key]) {
       if (["hm20c", "countryside", "imagery"].includes(mapKey[event.key])) setLayer(mapKey[event.key]);
       else setTool(mapKey[event.key]);
@@ -1602,6 +1743,12 @@ function boot() {
   if (typeof savedAll.screenWidthCm === "number" && savedAll.screenWidthCm > 0) {
     state.screenWidthCm = savedAll.screenWidthCm;
   }
+  if (savedAll.contours && typeof savedAll.contours === "object") {
+    state.contoursOn = Boolean(savedAll.contours.on);
+    state.contourLabelsOn = savedAll.contours.labels !== false;
+  }
+  // 網址 ?contours=1 開／?contours=0 關等高線（例如由教學頁連過嚟）。
+  if (params.has("contours")) state.contoursOn = params.get("contours") !== "0";
   if (saved && Array.isArray(saved.controls)) state.course = normalizeCourse(saved);
   state.course.orientation = normalizeOrientation(state.course.orientation);
   const restored = hasMeaningfulCourse(state.course);
@@ -1633,6 +1780,9 @@ function boot() {
   renderMeasure();
   renderSidebar();
   syncScaleSelect();
+  contours.setLabels(state.contourLabelsOn);
+  contours.setEnabled(state.contoursOn);
+  syncContourUi();
   /* 還原上次視圖：有路線時先把第一個點放在畫面中心，否則若有 fly 參數則飛過去。 */
   if (flyTarget) {
     map.setView([flyTarget.lat, flyTarget.lng], flyTarget.zoom || 13);
