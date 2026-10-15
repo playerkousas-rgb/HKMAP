@@ -1,0 +1,63 @@
+# ── Vercel 上傳黑名單 · 瘦身系統（見 docs/瘦身與防增肥守則.md）──
+# HKMAP 冇 build 步：根目錄即產物。所以「上線用唔到嘅嘢」一律靠呢份黑名單擋住，
+# 唔好指望「反正細檔冇所謂」——Vercel 儲存配額係計檔案數＋體積。
+#
+# ⚠️ 唯一定律：HTML 有引用嘅本機檔案必須留喺部署包。
+#    例：mock.html 連結 教學.md → 教學.md 唔准入黑名單（入咗線上即 404）。
+#    scripts/slim-guard.mjs 會雙向核對（漏檔／死重都紅），改呢檔之前先睇嗰檔。
+
+# 版本控制／平台中繼
+.git
+.github
+.vercel
+.gitignore
+.vercelignore
+
+# 依賴與本機產物（本倉零運行依賴、零 build；唔准引入打包工具）
+node_modules
+dist
+coverage
+.cache
+.turbo
+.next
+.nuxt
+.output
+.parcel-cache
+.vite
+.pytest_cache
+*.tsbuildinfo
+package-lock.json
+
+# 文件／守門腳本／本機部署捷徑（上線用唔到）
+docs
+scripts
+README.md
+LICENSE
+MD
+deploy-to-vercel.bat
+deploy-to-vercel.command
+
+# 備份／暫存／日誌死重（本應唔准入倉，呢度係第二重保險）
+*.log
+npm-debug.log*
+yarn-error.log*
+*.bak
+*.tmp
+*.old
+*.orig
+*.swp
+*.swo
+*~
+*.map
+
+# 系統暫存
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 環境變數
+.env
+.env.*
+
+# 嚴禁：會隨使用量持續累積儲存空間嘅機制
+uploads/

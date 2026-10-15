@@ -55,6 +55,7 @@
         <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">地圖下載</a>
         <button class="ghost" id="btn-lang" type="button">EN</button>
         <button class="ghost" id="btn-about" type="button">地圖來源</button>
+        <button class="ghost" id="btn-report" type="button" data-report-open title="問題回報 · 意見回饋（Scout Admin 統一處理，可匿名）">🐛 回報</button>
         <button class="solid" id="btn-print" type="button">🖨 列印地圖</button>
       </div>
     </header>
@@ -310,6 +311,10 @@
         <a href="https://www.landsd.gov.hk/doc/en/mapping/digital-map/common/doc/pricelist.pdf" target="_blank" rel="noopener">價目表</a>
       </p>
       <p><strong>坐標</strong> — WGS84 經緯度，加上 HM20C／童軍慣用的 <strong>UTM 100 km 方格</strong>（zone 49Q：GE／HE；zone 50Q：JK／KK），即「KK 1234 5678」8 位方格。</p>
+      <p><strong>問題回報 · 意見回饋</strong> — 頂欄「🐛 回報」即可提交（可匿名），由
+        <a href="https://scout-admin-blue.vercel.app/" target="_blank" rel="noopener">Scout Admin</a>
+        統一處理，全部 Scout System 用同一個格式及表格；圖磚、等高線或列印問題請寫明底圖模式同紙張／比例。
+      </p>
       <div class="actions">
         <button class="solid" id="about-close" type="button">關閉</button>
       </div>
@@ -331,6 +336,11 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+  <!-- Scout Admin 統一回報系統（統一回報格式 v1）：一行 widget，data-app 認來源。
+       右下角 FAB 喺 css/app.css 收咗，入口係頂欄「🐛 回報」（見 js/report.js）。
+       呢行屬全家標準，瘦身守門 scripts/slim-guard.mjs 會核對，唔好刪。 -->
+  <script src="https://scout-admin-blue.vercel.app/widget.js" data-app="定向地圖"></script>
+  <script type="module" src="js/report.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

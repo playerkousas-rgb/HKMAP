@@ -1,0 +1,21 @@
+name: 瘦身守門 · slim guard
+
+# 人會忘記，機器不會：防增肥＋統一回報系統接入檢查（零依賴，唔使 npm install）
+# 規則見 docs/瘦身與防增肥守則.md
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  slim:
+    name: 體積預算 ＋ 回報入口完整性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: node scripts/slim-guard.mjs
+        run: node scripts/slim-guard.mjs

@@ -1057,6 +1057,14 @@ label.field textarea { min-height: 60px; resize: vertical; }
 }
 
 
+/* ============ Scout Admin 統一回報 widget（js/report.js）============
+   widget 自帶樣式（佢嘅 brand 紅色屬全家統一），呢度只做兩件事：
+   ① 收起佢嘅右下角浮動掣——呢度右下角係 .credit（地政總署版權聲明），唔可以畀人瞓；
+      入口改放頂欄「🐛 回報」。② modal 貼埋本倉圓角／陰影，同其他 .modal 一致。 */
+#scoutw-fab { display: none !important; }
+#scoutw-modal { border-radius: 16px; border-top: 4px solid var(--gold); }
+#scoutw-overlay { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+
 /* ============ 列印：印出嘅就係畫面白紙（同一個 DOM，零轉換） ============ */
 @page pageA4L { size: A4 landscape; margin: 0; }
 @page pageA4P { size: A4 portrait; margin: 0; }
@@ -1081,6 +1089,7 @@ body[data-paper="A5"][data-orientation="portrait"] { page: pageA5P; }
   .restore-bar,
   .modal,
   .toast,
+  #scoutw-root,
   .leaflet-control-container { display: none !important; }
   .app { display: block; height: auto; }
   .mapwrap {
