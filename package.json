@@ -1,0 +1,14 @@
+{
+  "name": "hkmap-scout-system",
+  "version": "1.0.0",
+  "description": "Scout System · 香港城市定向地圖（設計＝列印）— 非官方靜態網頁，零依賴、零 build",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080 --bind 0.0.0.0",
+    "check:slim": "node scripts/slim-guard.mjs",
+    "check": "node scripts/slim-guard.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

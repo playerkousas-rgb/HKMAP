@@ -1,5 +1,31 @@
+# 系統／編輯器
 .DS_Store
+Thumbs.db
+desktop.ini
 .idea
 .vscode
-*.log
+
+# 依賴與本機產物（本倉零依賴、零 build；唔准引入打包工具）
 node_modules
+dist
+coverage
+.vercel
+.cache
+*.tsbuildinfo
+package-lock.json
+
+# 日誌／備份／暫存／map（瘦身守門：呢啲類檔唔准入倉，見 docs/瘦身與防增肥守則.md）
+*.log
+*.bak
+*.tmp
+*.old
+*.orig
+*.swp
+*.swo
+*~
+*.map
+
+# 嚴禁：會隨使用量累積儲存空間嘅機制
+uploads/
+.env
+.env.*

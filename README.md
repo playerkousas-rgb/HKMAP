@@ -36,6 +36,7 @@
 - 桌面預設顯示實際 mm；手機／平板預設「預覽（自動貼合視窗）」——預覽只是把整張紙縮放顯示，地圖範圍與列印完全相同；「實際 mm」仍可用「螢幕寬度（cm）」校準成物理真實大小
 - 列印檢查點說明表
 - 本機暫存、返回／重做、量距
+- **🐛 問題回報／意見回饋**：頂欄一個掣，Scout Admin 統一格式（可匿名，唔經本站後端）
 
 ## 版權與條款
 
@@ -50,6 +51,15 @@ python3 -m http.server 8080 --bind 0.0.0.0
 ```
 
 瀏覽器開啟該位址即可。圖磚由使用者瀏覽器直接向 `mapapi.geodata.gov.hk` 讀取；開啟等高線時，瀏覽器會向 `services3.arcgis.com`（Esri China (HK) 公開的 iB20000 等高線圖層）查詢，程式見 `js/contours.js`。
+
+## 全家標準：瘦身系統 ＋ 統一回報系統
+
+```bash
+npm run check:slim      # 防增肥守門（零依賴，違反即 exit 1）
+```
+
+- **瘦身系統**：`.vercelignore`（上傳黑名單）＋ `scripts/slim-guard.mjs`（守門腳本）＋ `package.json`（命令入口）＋ `docs/瘦身與防增肥守則.md`（預算與流程）。本倉**零依賴、零 build**：Vercel 直接上傳靜態檔，所以「上線用唔到嘅嘢」一律靠黑名單擋住。守門同時檢查：單檔／總和體積預算、`css|js|assets` 死重、HTML 引用漏檔（防線上 404）、備份暫存檔、`uploads/`。PR／push 由 `.github/workflows/slim-check.yml` 自動跑。
+- **統一回報系統**：`index.html` 一行接入 Scout Admin widget（`data-app="定向地圖"`），頂欄「🐛 回報」開 modal；資料直送區會 Apps Script——**唔經本站後端、唔使 API key、可匿名**。`download.html`／`mock.html` 用獨立回報頁連結（零 JS）；列印時 modal 自動收埋。詳見 `js/report.js` 與守則 §6。
 
 ## 成員下載電子地圖
 
