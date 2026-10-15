@@ -83,7 +83,7 @@
         </label>
         <p class="notice" style="margin:0 0 8px">留空＝按 96 dpi 螢幕假設（高密度／已縮放嘅螢幕會比真實 A4 細）；填咗螢幕左右闊度就按真實大小顯示。</p>
         <p class="notice" id="paper-info" style="margin:0 0 8px"></p>
-        <p class="notice" style="margin:0 0 8px">更換 A3／A4／A5：未鎖比例時會自動調整縮放，盡量保留同一地區，較大紙張會將地圖放大；已鎖比例則維持分母、顯示較大範圍。手機／平板預設用貼合預覽，列印尺寸不受影響。</p>
+        <p class="notice" style="margin:0 0 8px">更換 A3／A4／A5 或方向：<strong>比例保持不變</strong>（鎖定與否都一樣），紙張越大，白紙上見到、印出嚟嘅範圍就越大，畫面即時顯示新範圍。「預覽」只係將成張紙縮放顯示，地圖範圍同列印一模一樣。想同一地區印大啲，請改細比例分母（例如 1:5 000 → 1:4 000）。</p>
         <div class="custom-scale">
           <label class="field">自訂比例（輸入分母）
             <div class="custom-scale-row">
@@ -175,51 +175,54 @@
     <main class="mapwrap">
       <div class="deskscroll">
         <div class="desk">
-          <div class="paper-stack">
-            <section class="sheet sheet-map" id="sheet-map">
-              <header class="sheet-head">
-                <div>
-                  <h1 id="sheet-title">定向地圖</h1>
-                  <p id="sheet-meta"></p>
-                </div>
-                <div class="sheet-mark">
-                  <img src="assets/mark.svg" alt="" />
-                  <div>SCOUT SYSTEM<br /><small>設計＝列印</small></div>
-                </div>
-              </header>
-              <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
-              <footer class="sheet-foot">
-                <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印　·　方格數字 E/N</div>
-                <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
-              </footer>
-            </section>
-
-            <section class="sheet sheet-desc" id="sheet-desc">
-              <header class="sheet-head sheet-head-desc">
-                <div>
-                  <h2 id="desc-title">檢查點說明</h2>
-                  <p id="desc-meta"></p>
-                </div>
-                <div class="sheet-mark">
-                  <img src="assets/mark.svg" alt="" />
-                  <div>SCOUT SYSTEM<br /><small>第 2 頁</small></div>
-                </div>
-              </header>
-              <section class="desc">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>編號</th>
-                      <th>說明</th>
-                      <th class="leader-only">方格 8位</th>
-                      <th class="leader-only">方格 6位</th>
-                      <th>段距</th>
-                    </tr>
-                  </thead>
-                  <tbody id="desc-body"></tbody>
-                </table>
+          <!-- paper-scaler：佔用「縮放後」大小；paper-stack 內永遠用真實 mm 排版（＝列印），只用 CSS 縮放顯示 -->
+          <div class="paper-scaler" id="paper-scaler">
+            <div class="paper-stack" id="paper-stack">
+              <section class="sheet sheet-map" id="sheet-map">
+                <header class="sheet-head">
+                  <div>
+                    <h1 id="sheet-title">定向地圖</h1>
+                    <p id="sheet-meta"></p>
+                  </div>
+                  <div class="sheet-mark">
+                    <img src="assets/mark.svg" alt="" />
+                    <div>SCOUT SYSTEM<br /><small>設計＝列印</small></div>
+                  </div>
+                </header>
+                <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
+                <footer class="sheet-foot">
+                  <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印　·　方格數字 E/N</div>
+                  <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
+                </footer>
               </section>
-            </section>
+
+              <section class="sheet sheet-desc" id="sheet-desc">
+                <header class="sheet-head sheet-head-desc">
+                  <div>
+                    <h2 id="desc-title">檢查點說明</h2>
+                    <p id="desc-meta"></p>
+                  </div>
+                  <div class="sheet-mark">
+                    <img src="assets/mark.svg" alt="" />
+                    <div>SCOUT SYSTEM<br /><small>第 2 頁</small></div>
+                  </div>
+                </header>
+                <section class="desc">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>編號</th>
+                        <th>說明</th>
+                        <th class="leader-only">方格 8位</th>
+                        <th class="leader-only">方格 6位</th>
+                        <th>段距</th>
+                      </tr>
+                    </thead>
+                    <tbody id="desc-body"></tbody>
+                  </table>
+                </section>
+              </section>
+            </div>
           </div>
         </div>
       </div>
