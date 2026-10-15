@@ -29,6 +29,8 @@ const STORAGE_KEY = "scout-system-courses-v1";
 const TERMS_KEY = "scout-system-landsd-terms";
 const SCREEN_MM_PX = 96 / 25.4;
 let lastScreenScale = SCREEN_MM_PX;
+/** 螢幕預覽縮放倍數（1＝實際 mm）。只影響顯示，唔影響地圖範圍及列印。 */
+let previewScale = 1;
 let pageStyleEl = null;
 
 const state = {
@@ -99,7 +101,9 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.remove("show"), 2400);
+  // 長訊息（例如換紙後的範圍對比）顯示耐少少。
+  const ms = Math.min(6000, Math.max(2400, String(msg).length * 70));
+  toast._t = setTimeout(() => el.classList.remove("show"), ms);
 }
 
 function t(zh, en) {
@@ -448,6 +452,21 @@ function calibratedPxPerMm() {
   return w / (cm * 10);
 }
 
+/** 手機版工具列浮喺地圖區頂部：量度佢嘅高度，白紙由工具列下面開始排。 */
+function toolbarReservePx() {
+  if (window.innerWidth > 600) return 0;
+  const tools = document.querySelector(".scale-lock");
+  if (!tools) return 0;
+  return Math.ceil(tools.getBoundingClientRect().height) + 8;
+}
+
+/**
+ * 設計＝列印：白紙同地圖永遠用「真實 mm」排版（96 dpi CSS px），即係同列印一模一樣，
+ * 所以 Leaflet 地圖嘅像素大小＝紙面圖框大小，比例相同時：
+ *   A3 範圍 > A4 範圍 > A5 範圍（畫面同列印都係）。
+ * 螢幕上想睇晒整張紙（預覽）或者按校準顯示真實大小，只係用 CSS transform 縮放成疊紙，
+ * 唔會改變地圖顯示範圍，亦唔使喺列印前重新載入地圖。
+ */
 function applyPaperLayout() {
   const paper = state.course.paperSize || "A4";
   const orientation = currentOrientation();
@@ -456,33 +475,43 @@ function applyPaperLayout() {
   const hostW = host?.clientWidth || window.innerWidth || 1280;
   const hostH = host?.clientHeight || window.innerHeight || 900;
   const preview = currentPreviewMode();
-  const fitScale = Math.min((hostW - 72) / g.sheetW, (hostH - 72) / g.sheetH, 6);
+  const reserve = toolbarReservePx();
+  if (host) host.style.setProperty("--tools-reserve", `${reserve}px`);
+  const fitScale = Math.min((hostW - 72) / g.sheetW, (hostH - 72 - reserve) / g.sheetH, 6);
   const calibrated = calibratedPxPerMm();
   const minFitScale = window.innerWidth <= 600 ? 0.35 : 0.7;
   const screenScale =
     preview === "fit" ? Math.max(minFitScale, fitScale) : calibrated || SCREEN_MM_PX;
   lastScreenScale = screenScale;
+  previewScale = screenScale / SCREEN_MM_PX;
   const root = document.body.style;
-  const setPx = (name, mm) => root.setProperty(name, `${(mm * screenScale).toFixed(2)}px`);
   const setMm = (name, mm) => root.setProperty(name, `${mm}mm`);
-  setPx("--sheet-w-screen", g.sheetW);
-  setPx("--sheet-h-screen", g.sheetH);
-  setPx("--map-w-screen", g.mapW);
-  setPx("--map-h-screen", g.mapH);
-  setPx("--head-h-screen", g.headH);
-  setPx("--foot-h-screen", g.footH);
-  setPx("--desc-head-h-screen", g.descHeadH);
-  setPx("--pad-x-screen", g.padX);
-  setPx("--pad-y-screen", g.padY);
-  setMm("--sheet-w-print", g.sheetW);
-  setMm("--sheet-h-print", g.sheetH);
-  setMm("--map-w-print", g.mapW);
-  setMm("--map-h-print", g.mapH);
-  setMm("--head-h-print", g.headH);
-  setMm("--foot-h-print", g.footH);
-  setMm("--desc-head-h-print", g.descHeadH);
-  setMm("--pad-x-print", g.padX);
-  setMm("--pad-y-print", g.padY);
+  // 螢幕（-screen）同列印（-print）用同一套 mm，確保畫面白紙＝列印頁。
+  for (const media of ["screen", "print"]) {
+    setMm(`--sheet-w-${media}`, g.sheetW);
+    setMm(`--sheet-h-${media}`, g.sheetH);
+    setMm(`--map-w-${media}`, g.mapW);
+    setMm(`--map-h-${media}`, g.mapH);
+    setMm(`--head-h-${media}`, g.headH);
+    setMm(`--foot-h-${media}`, g.footH);
+    setMm(`--desc-head-h-${media}`, g.descHeadH);
+    setMm(`--pad-x-${media}`, g.padX);
+    setMm(`--pad-y-${media}`, g.padY);
+  }
+  root.setProperty("--preview-scale", previewScale.toFixed(4));
+  root.setProperty("--preview-inv", (1 / previewScale).toFixed(4));
+  // 版權字樣（反向縮放後）最闊只可以等於畫面上地圖嘅闊度。
+  root.setProperty("--attr-max-w", `${Math.max(120, g.mapW * screenScale - 16).toFixed(0)}px`);
+  syncPreviewBox();
+}
+
+/** 令外框佔用「縮放後」的大小（transform 本身唔會影響排版），捲動範圍及置中先會正確。 */
+function syncPreviewBox() {
+  const box = document.getElementById("paper-scaler");
+  const stack = document.getElementById("paper-stack");
+  if (!box || !stack) return;
+  box.style.width = `${(stack.offsetWidth * previewScale).toFixed(2)}px`;
+  box.style.height = `${(stack.offsetHeight * previewScale).toFixed(2)}px`;
 }
 
 function applyPageRule() {
@@ -509,44 +538,51 @@ function applyPaper() {
   updatePaperInfo();
 }
 
+/** 目前紙面使用的比例分母：鎖定時用鎖定值，否則按目前縮放計算。 */
+function currentScaleValue() {
+  return state.course.scaleLocked
+    ? currentScaleLock()
+    : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
+}
+
+/** 指定紙張／方向／比例下，紙面圖框覆蓋的實地範圍（米）。 */
+function paperCoverage(
+  paper = state.course.paperSize || "A4",
+  orientation = currentOrientation(),
+  scale = currentScaleValue()
+) {
+  const area = paperAreaMeters(paper, scale, orientation);
+  return { paper, orientation, scale, w: area.w, h: area.h };
+}
+
+function coverageLabel(c) {
+  return `${fmtLen(c.w)} × ${fmtLen(c.h)}`;
+}
+
 /**
- * Resize the print area while keeping the same geographic extent when scale is
- * unlocked. A larger page then gives the same neighbourhood more paper space
- * (larger printed features) instead of merely revealing more ground. A locked
- * denominator remains exact and therefore naturally covers more ground.
+ * 換紙張／方向：比例永遠保持不變（鎖定與否都一樣），中心點亦不變。
+ * 因為地圖以真實 mm 排版，紙越大，畫面白紙上見到（亦即列印）的範圍就越大：
+ * 1:5 000 時 A4 橫向約 1.5 km × 945 m，A3 橫向約 2.1 km × 1.4 km。
  */
 function changePaperFormat({ paper = state.course.paperSize, orientation = currentOrientation() }) {
-  const oldGeometry = pageGeometryMm(state.course.paperSize || "A4", currentOrientation());
-  const oldZoom = map.getZoom();
+  const before = paperCoverage();
   const center = map.getCenter();
-  const locked = state.course.scaleLocked;
+  const zoom = map.getZoom();
 
   state.course.paperSize = paper;
   state.course.orientation = normalizeOrientation(orientation);
   applyPaper();
 
-  if (!locked) {
-    const newGeometry = pageGeometryMm(state.course.paperSize, currentOrientation());
-    const extentRatio = Math.min(
-      newGeometry.mapW / oldGeometry.mapW,
-      newGeometry.mapH / oldGeometry.mapH
-    );
-    if (Number.isFinite(extentRatio) && extentRatio > 0) {
-      const targetZoom = Math.max(
-        map.getMinZoom(),
-        Math.min(map.getMaxZoom(), oldZoom + Math.log2(extentRatio))
-      );
-      map.setView(center, targetZoom, { animate: false });
-      // Keep the lock button and scale selector aligned with the new live scale.
-      state.course.scaleLock = Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
-      syncScaleSelect();
-    }
-  }
+  const targetZoom = state.course.scaleLocked
+    ? zoomForScale(center.lat, currentScaleLock())
+    : zoom;
+  map.setView(center, targetZoom, { animate: false });
 
   updateScaleChip();
   updatePaperInfo();
   renderSheetInfo();
-  return locked;
+  updateOffPaper();
+  return { before, after: paperCoverage() };
 }
 
 function updatePaperInfo() {
@@ -555,25 +591,33 @@ function updatePaperInfo() {
   const paper = state.course.paperSize || "A4";
   const orientation = currentOrientation();
   const locked = !!state.course.scaleLocked;
-  const s = locked ? currentScaleLock() : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
-  const a = paperAreaMeters(paper, s, orientation);
+  const s = currentScaleValue();
+  const a = paperCoverage(paper, orientation, s);
   const g = pageGeometryMm(paper, orientation);
   const calibrated = calibratedPxPerMm();
   const shown = lastScreenScale || SCREEN_MM_PX;
+  const sizes = ["A3", "A4", "A5"]
+    .map((size) => {
+      const c = paperCoverage(size, orientation, s);
+      const label = `${size} ${coverageLabel(c)}`;
+      return size === paper ? `<strong>${label}</strong>` : label;
+    })
+    .join("　·　");
   let screenNote;
   if (currentPreviewMode() === "actual") {
     screenNote = calibrated
       ? `螢幕顯示：<strong>真實 mm</strong>（已按螢幕寬 ${Number(state.screenWidthCm)} cm 校準，${paper}＝${g.sheetW}×${g.sheetH} mm）。`
       : `螢幕顯示：實際 mm，按 96 dpi 假設（高密度／已縮放螢幕會比真實 ${paper} 細；填「螢幕寬度」即可校準）。`;
   } else if (calibrated) {
-    screenNote = `螢幕顯示：約為真實 ${paper} 嘅 <strong>${Math.round((shown / calibrated) * 100)}%</strong>（預覽自動貼合視窗）。`;
+    screenNote = `螢幕顯示：整張紙縮放至真實 ${paper} 嘅 <strong>${Math.round((shown / calibrated) * 100)}%</strong>（預覽，地圖範圍＝列印範圍）。`;
   } else {
-    screenNote = `螢幕顯示：${Math.round((shown / SCREEN_MM_PX) * 100)}%（96 dpi 預覽，自動貼合視窗，唔係真實大小）。`;
+    screenNote = `螢幕顯示：整張紙縮放 <strong>${Math.round((shown / SCREEN_MM_PX) * 100)}%</strong>（預覽，地圖範圍＝列印範圍；按 96 dpi 計）。`;
   }
   el.innerHTML =
     `白紙＝列印範圍：<strong>${paper} ${orientationLabel(orientation)}</strong> @ <strong>${scaleLabel(s)}</strong>` +
     (locked ? "（已鎖定）" : "（未鎖定，隨畫面縮放）") +
-    `，紙面覆蓋約 <strong>${fmtLen(a.w)} × ${fmtLen(a.h)}</strong>。` +
+    `，紙面覆蓋約 <strong>${coverageLabel(a)}</strong>。` +
+    `<br />同一比例、${orientationLabel(orientation)}：${sizes}（紙越大，範圍越大）。<br />` +
     screenNote +
     `頁邊距已設為 <strong>0 mm</strong>（實際可印到幾貼邊，視瀏覽器／打印機支援的無邊框列印而定）。`;
 }
@@ -1072,8 +1116,24 @@ async function doPrint() {
       if (!ok) return;
     }
   }
+  // 畫面白紙本身已用真實 mm 排版（＝列印頁），唔使改尺寸；只等圖磚載入完先開打印對話框。
   map.invalidateSize();
-  setTimeout(() => window.print(), 200);
+  await waitForTiles();
+  setTimeout(() => window.print(), 150);
+}
+
+/** 等目前顯示中的圖層載入完（最多約 4 秒），避免列印出未載入的灰格。 */
+function waitForTiles(timeout = 4000) {
+  const layers = [basemap, imagery, countryside, labels].filter((layer) => map.hasLayer(layer));
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const check = () => {
+      const loading = layers.some((layer) => typeof layer.isLoading === "function" && layer.isLoading());
+      if (!loading || Date.now() - started > timeout) resolve();
+      else setTimeout(check, 120);
+    };
+    check();
+  });
 }
 
 /* ---------- sidebar ---------- */
@@ -1257,37 +1317,27 @@ function bind() {
     renderCourse();
     persist();
   });
+  const paperToast = ({ before, after }) => {
+    const what = `${after.paper} ${orientationLabel(after.orientation)}`;
+    const whatEn = `${after.paper} ${orientationLabel(after.orientation, true)}`;
+    toast(
+      t(
+        `已改為 ${what}：比例維持 ${scaleLabel(after.scale)}，紙面範圍 ${coverageLabel(before)} → ${coverageLabel(after)}`,
+        `${whatEn}: scale stays ${scaleLabel(after.scale)}; ground covered ${coverageLabel(before)} → ${coverageLabel(after)}`
+      )
+    );
+  };
   document.getElementById("paper-size").addEventListener("change", (event) => {
     remember();
-    const locked = changePaperFormat({ paper: event.target.value });
+    const change = changePaperFormat({ paper: event.target.value });
     persist();
-    toast(
-      locked
-        ? t(
-            `紙張已改為 ${state.course.paperSize}；比例仍鎖定，會顯示更大範圍。想放大同一地區，請先解鎖比例。`,
-            `${state.course.paperSize} selected. Scale stays locked, so the map covers more ground. Unlock to enlarge the same area.`
-          )
-        : t(
-            `紙張已改為 ${state.course.paperSize}；地圖已按新紙幅調整，盡量保留同一地區。`,
-            `${state.course.paperSize} selected. The map was rescaled to keep the same area on the new page.`
-          )
-    );
+    paperToast(change);
   });
   document.getElementById("paper-orientation").addEventListener("change", (event) => {
     remember();
-    const locked = changePaperFormat({ orientation: event.target.value });
+    const change = changePaperFormat({ orientation: event.target.value });
     persist();
-    toast(
-      locked
-        ? t(
-            `方向已改為${orientationLabel(currentOrientation())}；比例仍鎖定。`,
-            `Orientation set to ${orientationLabel(currentOrientation(), true)}; scale stays locked.`
-          )
-        : t(
-            `方向已改為${orientationLabel(currentOrientation())}；地圖已重新貼合紙面。`,
-            `Orientation set to ${orientationLabel(currentOrientation(), true)}; map adjusted to the page.`
-          )
-    );
+    paperToast(change);
   });
   document.getElementById("screen-preview").addEventListener("change", (event) => {
     state.previewMode = event.target.value === "actual" ? "actual" : "fit";
@@ -1295,7 +1345,7 @@ function bind() {
     persist();
     toast(
       state.previewMode === "fit"
-        ? t("已切換到螢幕預覽模式（自動貼合視窗）", "Screen preview on")
+        ? t("已切換到預覽（整張紙貼合視窗）：只係縮放顯示，地圖範圍同列印一樣", "Fit preview on — display only; map extent equals the print")
         : t("已切換到實際 mm 顯示（填螢幕寬度＝物理真實大小）", "Actual mm view — calibrate screen width for physical size")
     );
   });
@@ -1624,6 +1674,22 @@ function boot() {
   requestAnimationFrame(fit);
   setTimeout(fit, 250);
   window.addEventListener("resize", fit);
+  if ("ResizeObserver" in window) {
+    // 說明表加減行數會改變紙疊高度 → 更新縮放後外框大小。
+    const stack = document.getElementById("paper-stack");
+    if (stack) new ResizeObserver(() => syncPreviewBox()).observe(stack);
+    // 手機版工具列高度改變（例如出現「白紙外」提示）→ 重新預留位置。
+    const tools = document.querySelector(".scale-lock");
+    let lastToolsH = 0;
+    if (tools) {
+      new ResizeObserver(() => {
+        const h = Math.round(tools.getBoundingClientRect().height);
+        if (h === lastToolsH) return;
+        lastToolsH = h;
+        if (window.innerWidth <= 600) applyPaperLayout();
+      }).observe(tools);
+    }
+  }
 }
 
 boot();
