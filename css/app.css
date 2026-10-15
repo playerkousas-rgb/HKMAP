@@ -35,7 +35,7 @@ button, input, select, textarea { font-family: inherit; }
 .app {
   height: 100%;
   display: grid;
-  grid-template-rows: var(--header) 1fr;
+  grid-template-rows: minmax(var(--header), auto) 1fr;
   grid-template-columns: var(--sidebar) 1fr;
   grid-template-areas:
     "top top"
@@ -805,21 +805,189 @@ label.field textarea { min-height: 60px; resize: vertical; }
 }
 
 @media (max-width: 900px) {
+  /* The header wraps on tablets and phones, so its grid row must grow with it. */
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
   .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: var(--header) 1fr auto;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(320px, 56vh) minmax(220px, 42vh);
     grid-template-areas: "top" "map" "side";
+  }
+  .topbar {
+    min-width: 0;
+    gap: 8px 10px;
+    padding: 9px 12px;
+  }
+  .top-actions {
+    min-width: 0;
+    max-width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
   .sidebar {
     max-height: 42vh;
     border-right: 0;
     border-top: 1px solid var(--line);
   }
+  .mapwrap { min-height: 320px; }
   .brand small { display: none; }
   .basemaps button { padding: 7px 9px; font-size: 12px; }
   .coord-readout { min-width: 0; max-width: calc(100% - 24px); }
   .deskscroll { padding: 12px 12px 60px; }
 }
+
+@media (max-width: 600px) {
+  .app {
+    grid-template-rows: auto minmax(420px, 62vh) auto;
+  }
+  .topbar {
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .brand {
+    flex: 1 1 100%;
+    min-width: 0;
+    gap: 8px;
+  }
+  .brand img { width: 32px; height: 32px; }
+  .basemaps {
+    display: grid;
+    flex: 1 1 100%;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+    border-radius: 12px;
+  }
+  .basemaps button {
+    min-width: 0;
+    min-height: 38px;
+    padding: 6px 3px;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: normal;
+  }
+  .search {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .search input { min-width: 0; min-height: 40px; }
+  .top-actions {
+    flex: 1 1 100%;
+    width: 100%;
+    gap: 6px;
+  }
+  .top-actions .hist,
+  .top-actions .hist-clear { gap: 4px; }
+  .top-actions .ghost,
+  .top-actions .solid,
+  .top-actions a {
+    min-height: 40px;
+    padding: 8px 10px;
+  }
+  .top-actions a {
+    display: inline-flex !important;
+    align-items: center;
+  }
+  .sidebar {
+    max-height: none;
+    overflow: visible;
+    padding: 12px 10px 24px;
+  }
+  .sidebar button { min-height: 40px; }
+  .sidebar label.field input,
+  .sidebar label.field select,
+  .sidebar label.field textarea { font-size: 16px; }
+  .panel { padding: 10px; }
+  .mapwrap { min-height: 420px; }
+  .deskscroll { padding: 10px 10px 44px; }
+
+  /* Keep the map actions in a compact, wrapping toolbar rather than a tall
+     right-hand stack that hides controls on narrow screens. */
+  .scale-lock {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 7px;
+    align-items: stretch;
+    justify-items: stretch;
+    border-radius: 14px;
+    background: rgba(20, 32, 27, .16);
+    backdrop-filter: blur(4px);
+  }
+  .scale-lock > .chip,
+  .scale-set select,
+  .scale-set .chip {
+    width: 100%;
+    min-width: 0;
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: normal;
+  }
+  .scale-set {
+    min-width: 0;
+    width: 100%;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .scale-set select {
+    padding-right: 22px;
+    background-position: right 8px center;
+  }
+  #offpaper-chip {
+    grid-column: 1 / -1;
+    text-align: left;
+    line-height: 1.25;
+  }
+  .leaflet-top.leaflet-left {
+    top: auto;
+    bottom: 30px;
+    left: 8px;
+  }
+  .coord-readout {
+    left: 88px;
+    right: 8px;
+    bottom: 30px;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    padding: 7px 9px;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+  .credit { display: none; }
+  .leaflet-control-attribution {
+    max-width: 100%;
+    font-size: 9px !important;
+  }
+  .restore-bar:not([hidden]) {
+    top: 225px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+  .toast {
+    width: calc(100% - 24px);
+    text-align: center;
+    border-radius: 12px;
+  }
+}
+
 
 /* ============ 列印：印出嘅就係畫面白紙（同一個 DOM，零轉換） ============ */
 @page pageA4L { size: A4 landscape; margin: 0; }

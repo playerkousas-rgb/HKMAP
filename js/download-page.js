@@ -70,7 +70,7 @@ function renderIb(filter = "") {
       <div class="file-grid" style="margin-top:12px">
         ${IB20000.links.map((l) => `<a class="file" href="${l.href}" target="_blank" rel="noopener"><b>${l.label}</b><small>官方網站</small></a>`).join("")}
       </div>
-      <p class="notice" style="margin-top:12px">本系統地圖畫面已用官方地形圖 API 顯示同一套 iB 資料，設計路線不必等下載完成。下載原檔是為了 QGIS、離線備份或自行出圖。</p>
+      <p class="notice" style="margin-top:12px">本系統地圖畫面已用官方地形圖 API 顯示同一套 iB 資料，設計路線不必等下載完成。下載原檔是為了 QGIS、離線備份或自行出圖。<a href="download.html?tab=qgis"><strong>下載 QGIS 及加圖框線教學 →</strong></a></p>
       <input class="filter" id="hm20c-q" placeholder="搜尋 HM20C 圖幅，例如：11 香港、沙田、13 石壁" value="${filter.replace(/"/g, "&quot;")}" />
     </section>
 
@@ -149,10 +149,60 @@ function renderCountryside(filter = "") {
     </section>`;
 }
 
+function renderQgisGuide() {
+  return `
+    <section class="card qgis-intro" id="qgis-install">
+      <h2>QGIS 安裝＋加圖框線教學</h2>
+      <p class="ok"><strong>先講重點：</strong>iB20000 下載的是有座標的地圖資料，不是已排版的紙圖。要加四邊圖框、方格網及設定 A3/A4，請在 QGIS 的「列印版面配置（Print Layout）」處理；只在地圖主畫面看圖，不會自動出現圖框。</p>
+      <div class="file-grid qgis-links">
+        <a class="file qgis-download" href="https://qgis.org/download/" target="_blank" rel="noopener"><b>📥 下載 QGIS（官方網站）</b><small>Windows、macOS、Linux；一般新手建議選 Long Term Release（LTR）</small></a>
+        <a class="file" href="https://docs.qgis.org/latest/en/docs/user_manual/" target="_blank" rel="noopener"><b>QGIS 官方使用手冊</b><small>更多版本及功能說明</small></a>
+        <a class="file" href="download.html?tab=hm20c"><b>返回 iB20000 官方下載</b><small>選 GeoTIFF 或 GML 等格式</small></a>
+        <a class="file" href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener"><b>地政總署使用條款</b><small>列印／分享前請確認版權要求</small></a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>一、下載地圖並載入 QGIS</h2>
+      <ol class="ol-steps qgis-steps">
+        <li>在「1. 電子 HM20C」登入香港地圖服務 2.0，選擇活動地區的 <strong>iB20000</strong> 圖幅，按官方指示下載。簡單出圖可先選 <strong>GeoTIFF</strong>；需要逐層調整道路、地物樣式才選 GML／FGDB。</li>
+        <li>如果下載的是 ZIP，先在電腦解壓縮；GeoTIFF 的 <code>.tif</code> 檔及同一資料夾的附屬檔案請一併保留。</li>
+        <li>開啟 QGIS：選單「圖層 → 加入圖層 → 加入 Raster Layer（GeoTIFF）」；若下載 GML，選「加入 Vector Layer」，再選檔案並按「加入」。FGDB 通常要選取解壓後的 <code>.gdb</code> 資料夾，再揀要載入的圖層。</li>
+        <li>圖層載入後，在圖層清單按右鍵，選「Layer CRS → Set Project CRS from Layer（以圖層 CRS 設定專案座標系統）」。先跟隨下載檔的座標系統；只有中繼資料明確寫出時才選 EPSG:2326（Hong Kong 1980 Grid System），不要盲目把座標系統改成 Google/Web Mercator。</li>
+        <li>按工具列「縮放至圖層」看完整圖幅，確認底圖顯示正常，再用「專案 → 儲存」存成 <code>.qgz</code> 專案檔。</li>
+      </ol>
+      <p class="warn"><strong>看不到地圖？</strong>先確認 ZIP 已解壓、選對 .tif／GML 檔，並按「縮放至圖層」。若 GML 沒有樣式或圖層很多，初學者可改用 GeoTIFF 先完成圖框及列印。</p>
+    </section>
+
+    <section class="card">
+      <h2>二、設定 A3/A4 紙張，為地圖加上四邊框線</h2>
+      <ol class="ol-steps qgis-steps">
+        <li>選「專案 → 新增列印版面配置（Project → New Print Layout）」，輸入版面名稱。</li>
+        <li>在空白紙張上按右鍵開啟頁面屬性，選紙張 <strong>A3</strong> 或 <strong>A4</strong>，再選直向／橫向。</li>
+        <li>在版面左側工具列選「加入地圖（Add Map）」，在紙上拖曳一個矩形；地圖會放進這個矩形圖框。拖動地圖項目可調整位置／範圍。</li>
+        <li>選取剛加入的地圖，在右側「項目屬性（Item Properties）」勾選 <strong>Frame（框線）</strong>。建議先用黑色、約 <strong>0.3 mm</strong> 線寬；這條線就是地圖四周的外框。只載入底圖而未勾選 Frame，不會有外框。</li>
+        <li>如要印比例尺，可在版面工具列加入「比例尺（Add Scale Bar）」；再加入「標籤（Add Label）」寫上圖名及 <strong>Map from Lands Department</strong> 版權標示。</li>
+      </ol>
+      <div class="qgis-tip"><strong>注意：</strong>QGIS 的圖框是在「列印版面配置」的地圖項目上設定，不是替 GeoTIFF 原檔永久畫線；修改版面不會改動官方下載檔。</div>
+    </section>
+
+    <section class="card">
+      <h2>三、（可選）加 UTM 方格網及匯出 PDF</h2>
+      <ol class="ol-steps qgis-steps">
+        <li>在列印版面選取地圖項目，打開「項目屬性 → Grids（網格）」，按 <strong>＋</strong> 新增網格並啟用。要跟 Scout System 的 UTM 方格，活動地點在 114° 經線以西選 WGS 84 / UTM zone 49N（EPSG:32649），以東選 zone 50N（EPSG:32650）；香港跨兩個帶，按活動區選一個即可。間距設 <strong>1,000 m</strong> 是 1 km 方格，<strong>100 m</strong> 則更密。若只要一般方格，可選下載圖層所用的米制投影 CRS；不要用經緯度格網當作米距。</li>
+        <li>在網格設定內開啟格線、外框或座標註記；調整線色／線寬及標籤位置，避免蓋住地圖細節。不同 QGIS 版本的按鈕名稱可能略有不同。</li>
+        <li>按「匯出為 PDF（Export as PDF）」，確認版面是 A3/A4 及方向正確。列印時選相同紙張、縮放 100%；如要精確比例，先在地圖項目的屬性設定比例尺，再用尺核對輸出。</li>
+      </ol>
+      <p class="notice">若只需要現成城市街道圖，可改用上方「e香港街」官方 GeoPDF；若要自行選比例、加框線、方格及標註，則用 iB20000＋QGIS。官方底圖版權與署方條款仍然適用。</p>
+      <a class="cta-link" href="download.html?tab=hm20c">← 返回 iB20000 下載</a>
+    </section>`;
+}
+
 const panels = {
   hm20c: (f) => renderIb(f || ""),
   ehkg: (f) => renderEhkg(f || ""),
   countryside: (f) => renderCountryside(f || ""),
+  qgis: () => renderQgisGuide(),
 };
 
 const root = document.getElementById("panel");

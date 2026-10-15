@@ -16,7 +16,7 @@
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
 </head>
-<body data-paper="A4" data-orientation="landscape" data-preview="actual">
+<body data-paper="A4" data-orientation="landscape" data-preview="fit">
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -76,13 +76,14 @@
         </div>
         <div class="row">
           <label class="field">紙張方向<select id="paper-orientation"><option value="landscape" selected>橫向</option><option value="portrait">直向</option></select></label>
-          <label class="field">螢幕顯示<select id="screen-preview"><option value="fit">預覽（自動貼合視窗）</option><option value="actual" selected>實際 mm（可校準）</option></select></label>
+          <label class="field">螢幕顯示<select id="screen-preview"><option value="fit" selected>預覽（自動貼合視窗）</option><option value="actual">實際 mm（可校準）</option></select></label>
         </div>
         <label class="field">螢幕寬度（cm）—「實際 mm」要真大小用
           <input id="screen-calib" type="number" min="15" max="120" step="0.1" placeholder="量螢幕左右闊，例如 34.4" inputmode="decimal" />
         </label>
         <p class="notice" style="margin:0 0 8px">留空＝按 96 dpi 螢幕假設（高密度／已縮放嘅螢幕會比真實 A4 細）；填咗螢幕左右闊度就按真實大小顯示。</p>
         <p class="notice" id="paper-info" style="margin:0 0 8px"></p>
+        <p class="notice" style="margin:0 0 8px">更換 A3／A4／A5：未鎖比例時會自動調整縮放，盡量保留同一地區，較大紙張會將地圖放大；已鎖比例則維持分母、顯示較大範圍。手機／平板預設用貼合預覽，列印尺寸不受影響。</p>
         <div class="custom-scale">
           <label class="field">自訂比例（輸入分母）
             <div class="custom-scale-row">
