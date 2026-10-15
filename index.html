@@ -107,6 +107,9 @@
           <label><input type="checkbox" id="opt-grid" checked /> UTM 方格網（KK／QK，同 HM20C）</label>
           <label><input type="checkbox" id="opt-grid-labels" checked /> 顯示方格數字（E 東距／N 北距）</label>
           <label><input type="checkbox" id="opt-leader" /> 領袖版：說明表加印方格坐標（KK／QK）</label>
+          <label class="opt-sep"><input type="checkbox" id="opt-contours" /> 等高線（iB20000，每 20 m，棕色）</label>
+          <label class="opt-sub"><input type="checkbox" id="opt-contour-labels" checked disabled /> 等高線高度數字（米）</label>
+          <p class="notice opt-note" id="contour-status">等高線來自地政總署 iB20000（每 20 m）。</p>
         </div>
         <button class="solid" id="btn-print-side" type="button" style="width:100%;margin-top:8px">🖨 列印地圖（＝畫面白紙）</button>
         <div class="row" style="margin-top:8px">
@@ -166,7 +169,7 @@
       </section>
 
       <p class="notice">
-        © Scout System　底圖 © 香港特別行政區政府地政總署，郊遊圖 © OpenTopoMap OSM。
+        © Scout System　底圖 © 香港特別行政區政府地政總署，郊遊圖 © OpenTopoMap OSM，等高線 © 地政總署 iB20000（經 Esri China (HK) ArcGIS Online）。
         使用須遵守<a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">地政總署 Map API 條款</a>。
         紙本地圖版權仍屬政府，本系統不複製紙本圖面。
       </p>
@@ -191,7 +194,7 @@
                 </header>
                 <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
                 <footer class="sheet-foot">
-                  <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印　·　方格數字 E/N</div>
+                  <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印　·　方格數字 E/N<span class="contour-legend">　·　<i class="contour-swatch" aria-hidden="true"></i>等高線每 20 m</span></div>
                   <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
                 </footer>
               </section>
@@ -250,6 +253,7 @@
           <button class="chip" id="btn-scale-lock" type="button">🔒 鎖定比例</button>
         </div>
         <button class="chip on" id="btn-grid" type="button">UTM 方格網</button>
+        <button class="chip" id="btn-contours" type="button" aria-pressed="false" title="顯示／隱藏等高線（地政總署 iB20000，每 20 m；快捷鍵 E）">等高線</button>
         <button class="chip" id="btn-fit-course" type="button">對齊路線</button>
         <button class="chip" id="btn-locate" type="button">我的位置</button>
         <button class="chip warn-chip" id="offpaper-chip" type="button" hidden></button>
@@ -260,6 +264,7 @@
         郊遊圖 © OpenTopoMap OSM<br />
         Aerial Photograph from Lands Department<br />
         地形資料對應 iB20000（免費數碼地形圖）<br />
+        等高線：iB20000 ELEVLINE（經 Esri China (HK)）<br />
         © Scout System
       </aside>
     </main>
@@ -272,7 +277,7 @@
       <p>按照署方規定，地圖畫面已標示 Lands Department 版權聲明。請勿大量短時間呼叫 API。使用前請閱讀
         <a href="https://portal.csdi.gov.hk/csdi-webpage/doc/TNC" target="_blank" rel="noopener">條款及知識產權告示</a>。
       </p>
-      <p>本系統給<strong>策劃者���圖、列印紙圖</strong>。參加者用紙圖找檢查點，不是手機 App。</p>
+      <p>本系統給<strong>策劃者畫圖、列印紙圖</strong>。參加者用紙圖找檢查點，不是手機 App。</p>
       <p style="font-size:12px;color:#5d6b64">© Scout System</p>
       <div class="actions">
         <button class="solid" id="terms-ok" type="button">我已閱讀並同意</button>
@@ -288,6 +293,8 @@
         顯示同一套 i-系列資料。</p>
       <p><strong>郊遊圖</strong> — 以 <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>（OSM 等高線＋山徑）作郊野規劃底圖，突顯遠足徑，適合野外定向；官方郊區地圖紙本仍需到地政總署購買，此圖磚僅作策劃參考。</p>
       <p><strong>航空照片</strong> — 地政總署航空照片 API。</p>
+      <p><strong>等高線（可開關）</strong> — 按右上角「等高線」（或左欄勾選、快捷鍵 E）即可顯示／隱藏。資料係地政總署 <strong>iB20000</strong> 嘅等高線圖層 <code>ELEVLINE</code>：每 20 m 一條、每 100 m 加粗，數字＝高度（米，主水平基準以上）。畫面經 Esri China (HK) 喺
+        <a href="https://www.arcgis.com/home/item.html?id=566289c35c214178b572a7e934a1cd9a" target="_blank" rel="noopener">ArcGIS Online 公開嘅同一套資料</a>即時讀取，只供參考；比例細過約 1:33 000 時唔顯示。開咗等高線，列印時會一齊印出。郊遊圖底圖本身已印有等高線，嗰啲係圖片一部分，無法隱藏。</p>
       <table class="compare">
         <thead><tr><th></th><th>HM20C</th><th>iB20000</th><th>郊遊圖</th><th>底圖</th></tr></thead>
         <tbody>

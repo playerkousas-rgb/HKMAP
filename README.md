@@ -6,7 +6,7 @@
 
 - [mock.html](mock.html) — 畫面 MOCK／四步教學
 - [教學.md](教學.md) — 完整文字說明
-- [download.html?tab=qgis](download.html?tab=qgis) — 安裝 QGIS、載入底圖、加地圖框線及方格網
+- [download.html?tab=qgis](download.html?tab=qgis) — QGIS 簡易教學：(1)(2)(3)… 逐步載入底圖、加等高線＋高度數字、地圖框線及方格網
 
 ## 已連結的香港政府地圖
 
@@ -18,6 +18,7 @@
 | iB20000 原檔下載 | [香港地圖服務 2.0](https://www.hkmapservice.gov.hk/OneStopSystem/map-search?product=OSSCatB&series=iB20000) · [CSDI](https://portal.csdi.gov.hk/geoportal/?datasetId=landsd_rcd_1637224132564_22637) | FGDB / GML / DWG / DGN / GeoTIFF，供 QGIS／CAD／離線製圖 |
 | 地名注記 | [Map Label API](https://portal.csdi.gov.hk/csdi-webpage/apidoc/MapLabelAPI) | 中文地名疊加 |
 | 航空照片 | [Imagery Map API](https://portal.csdi.gov.hk/csdi-webpage/apidoc/ImageryMapAPI) | 官方航空照片，方便核對現場 |
+| 等高線（可開關） | 地政總署 iB20000 `ELEVLINE`，經 [Esri China (HK) ArcGIS Online 公開圖層](https://www.arcgis.com/home/item.html?id=566289c35c214178b572a7e934a1cd9a) 即時查詢 | 每 20 m 一條、每 100 m 加粗，附高度數字（米）；比例約 1:33 000 或更大先顯示，只供參考 |
 
 **注意：** iB20000 是數碼地形**資料**，不是紙本 HM20C 的彩色 PDF 掃描。下載原檔適合 QGIS／CAD／離線列印。
 
@@ -27,6 +28,7 @@
 - 自動計算平面距離、方格方位、磁方位（約 3.1°W）
 - 即時坐標：WGS84、**UTM 方格（KK／QK 8 位）**、6 位／8 位方格
 - 可疊加 **UTM 方格網**，並在網線邊緣顯示 **E 東距／N 北距數字**，方便讀取 `KK 0794 6642`
+- **等高線顯示／隱藏**：地圖右上角「等高線」、左欄勾選或快捷鍵 **E**。iB20000 每 20 m 一條（粗線每 100 m），高度數字沿線排列並避開檢查點；開咗會一齊列印，紙圖底部加圖例。航空照片底圖自動改用淺色線
 - 城市定向常用比例：**1:2 500、1:4 000、1:5 000、1:7 500、1:10 000、1:15 000、1:20 000、1:25 000**；亦可輸入 **1:500–1:100 000 自訂比例**
 - 可 **LOCK 比例**（停用縮放，比例不會漂移）；白紙上就是該比例印出
 - **設計＝列印（WYSIWYG）**：中央白紙就是實際列印頁（A3/A4/A5、直向／橫向），紙外不會印。白紙上的地圖永遠按**真實 mm** 排版，所以畫面見到的範圍＝列印範圍。
@@ -47,7 +49,7 @@
 python3 -m http.server 8080 --bind 0.0.0.0
 ```
 
-瀏覽器開啟該位址即可。圖磚由使用者瀏覽器直接向 `mapapi.geodata.gov.hk` 讀取。
+瀏覽器開啟該位址即可。圖磚由使用者瀏覽器直接向 `mapapi.geodata.gov.hk` 讀取；開啟等高線時，瀏覽器會向 `services3.arcgis.com`（Esri China (HK) 公開的 iB20000 等高線圖層）查詢，程式見 `js/contours.js`。
 
 ## 成員下載電子地圖
 
@@ -55,5 +57,5 @@ python3 -m http.server 8080 --bind 0.0.0.0
 
 1. **電子 HM20C** — 官方免費 iB20000（香港地圖服務 2.0 登記後下載）
 2. **e香港街** — 官方免費 GeoPDF，適合城市定向
-3. **QGIS 安裝＋加框線教學** — 安裝 QGIS、載入 GeoTIFF/GML、設定 A3/A4、加地圖外框／UTM 方格網並匯出 PDF
+3. **QGIS 簡易教學（框線＋等高線）** — (1)–(12) 逐步做：安裝 QGIS、載入 GeoTIFF／GML／FGDB、等高線（`ELEVLINE`）改棕色＋加高度數字（`HEIGHT`）、設定 A3/A4、加地圖外框／UTM 方格網並匯出 PDF。**要等高線必須下載 GML 或 FGDB**（GeoTIFF 是圖片，抽不出線）
 4. **列印地圖** — `index.html` 內直接列印，紙圖上套印紫紅 CP 圓圈與檢查點說明

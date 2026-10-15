@@ -430,6 +430,40 @@ body:not(.leader) .leader-only { display: none; }
 .grid-label-east span { transform: translateY(2px); }
 .grid-label-north span { transform: translate(-2px, 0); }
 
+/* 等高線高度數字：沿線擺放（JS 設定旋轉），白邊令數字壓喺線上都睇得清；會隨地圖一齊列印。 */
+.contour-label {
+  background: transparent !important;
+  border: 0 !important;
+  pointer-events: none;
+  overflow: visible;
+}
+.contour-label span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  font: 600 8.5px/1 var(--sans);
+  color: #8f4c14;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 1px #fff;
+}
+.contour-label.is-index span { font-weight: 700; }
+.contour-label-pane.on-imagery .contour-label span {
+  color: #ffe2a3;
+  text-shadow: 0 0 2px #2a1a08, 0 0 2px #2a1a08, 0 0 1px #2a1a08;
+}
+/* 紙圖底部圖例：開咗等高線先顯示（JS 喺 body 加 .contours-on）。 */
+body:not(.contours-on) .contour-legend { display: none; }
+.contour-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  margin: 0 4px 0 1px;
+  border-top: 1.5px solid #b5651d;
+  vertical-align: middle;
+}
+
 .panel {
   background: var(--paper-2);
   border: 1px solid var(--line);
@@ -530,6 +564,10 @@ label.field textarea { min-height: 60px; resize: vertical; }
   padding: 8px 10px;
 }
 .opts label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.opts .opt-sep { border-top: 1px dashed rgba(20, 32, 27, .18); padding-top: 6px; margin-top: 2px; }
+.opts .opt-sub { padding-left: 20px; }
+.opts label:has(input:disabled) { opacity: .55; cursor: default; }
+.opts .opt-note { margin: 0 0 0 20px; }
 
 .sheets {
   display: grid;
@@ -630,6 +668,8 @@ label.field textarea { min-height: 60px; resize: vertical; }
   box-shadow: 0 6px 18px rgba(0,0,0,.12);
 }
 .chip.on { background: var(--forest); color: var(--gold-2); }
+/* 等高線已開但未顯示（比例太細／載入失敗）。 */
+.chip.on.dim { background: #55665e; color: #f3e7c4; }
 .chip.warn-chip {
   background: #b42318;
   color: #fff;

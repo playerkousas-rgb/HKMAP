@@ -269,6 +269,121 @@ body.page {
   color: var(--forest-2);
   font-weight: 700;
 }
+.qgis-tip ul { margin: 6px 0 0; padding-left: 18px; }
+.qgis-tip li { margin: 4px 0; }
+.qgis-tip code,
+.qg-step code,
+.qg-faq code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #efe8d8;
+  font-size: .92em;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- QGIS 簡易教學：(1)(2)(3)… 逐步卡片 ---------- */
+.qg-lead { margin: 0 0 10px; font-size: 14px; line-height: 1.6; }
+.qg-choose {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.qg-route {
+  display: block;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--moss);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.qg-route:hover { border-color: var(--gold); background: #fff8e6; }
+.qg-route.is-contour { border-left-color: #b5651d; }
+.qg-route b { display: block; font-size: 15px; margin-bottom: 2px; }
+.qg-part-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 4px;
+}
+.qg-part-head h2 { margin: 0; }
+.qg-part-tag {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--forest);
+  color: var(--gold-2);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+}
+.qg-part-note { font-size: 12px; color: var(--muted); }
+.qg-pre { margin: 8px 0 0; }
+.qg-steps {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.qg-step {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  scroll-margin-top: 12px;
+}
+.qg-no {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  height: 40px;
+  border-radius: 10px;
+  background: #efe8d8;
+  color: var(--forest);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: .02em;
+}
+.qg-body h3 { margin: 2px 0 6px; font-size: 15.5px; color: var(--ink); }
+.qg-do { margin: 0; padding-left: 18px; }
+.qg-do li { margin: 4px 0; font-size: 14px; line-height: 1.65; }
+.qg-check {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #e7f4ea;
+  color: #14532d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.qg-check b { margin-right: 6px; }
+.qg-hint { margin: 6px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+.ui { font-weight: 700; color: var(--forest-2); }
+.ui-zh { color: var(--muted); font-size: .92em; }
+.qg-part { scroll-margin-top: 12px; }
+.qg-faq dl { margin: 6px 0 8px; }
+.qg-faq dt { font-weight: 700; margin-top: 10px; font-size: 14px; }
+.qg-faq dd { margin: 3px 0 0; font-size: 13.5px; line-height: 1.6; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 
 @media (max-width: 600px) {
   .page-inner { padding: 14px 10px 40px; }
@@ -280,4 +395,7 @@ body.page {
   .file-grid { grid-template-columns: 1fr; }
   .countryside-grid { grid-template-columns: 1fr; }
   .compare { display: block; overflow-x: auto; white-space: nowrap; }
+  .qg-step { grid-template-columns: 1fr; gap: 6px; padding: 10px; }
+  .qg-no { justify-self: start; width: 52px; height: 32px; font-size: 16px; }
+  .qg-do li { font-size: 13.5px; }
 }
