@@ -9,7 +9,7 @@ export const IB20000 = {
   steps: [
     "開啟香港地圖服務 2.0，右上角「登入／登記」→ 個人用戶，完成電郵驗證。",
     "進入「空間數據與地形圖」，搜尋 iB20000。",
-    "選格式：一般成員建議 GeoTIFF；要用 QGIS 選 GML 或 FGDB。",
+    "選格式：新手用 QGIS 排版／加圖框，建議 GeoTIFF；想逐層編輯地物才選 GML（開放向量）或 FGDB（ArcGIS）。",
     "加入購物車（應付金額應為 $0），通過驗證碼後下載。請用 Chrome／Edge／Firefox。",
     "使用時必須標示 Map from Lands Department，並遵守地政總署條款。",
   ],

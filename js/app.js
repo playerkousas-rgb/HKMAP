@@ -40,7 +40,8 @@ const state = {
   labelsOn: true,
   linesOn: true,
   leaderOn: false,
-  previewMode: "actual",
+  // Phones and tablets should open with the whole paper fitted into the map viewport.
+  previewMode: window.innerWidth <= 900 ? "fit" : "actual",
   screenWidthCm: 0,
   course: emptyCourse(),
   selectedId: null,
@@ -116,6 +117,10 @@ function cloneState() {
       layer: state.layer,
       selectedId: state.selectedId,
       measure: state.measure,
+      view: {
+        center: { lat: map.getCenter().lat, lng: map.getCenter().lng },
+        zoom: map.getZoom(),
+      },
     })
   );
 }
@@ -194,7 +199,14 @@ function applySnapshot(snap) {
   renderSidebar();
   syncScaleSelect();
   syncScaleLockButton();
-  if (state.course.scaleLocked) {
+  if (copy.view && Number.isFinite(copy.view.center?.lat) && Number.isFinite(copy.view.center?.lng)) {
+    const zoom = state.course.scaleLocked
+      ? zoomForScale(copy.view.center.lat, currentScaleLock())
+      : Number.isFinite(copy.view.zoom)
+      ? copy.view.zoom
+      : map.getZoom();
+    map.setView([copy.view.center.lat, copy.view.center.lng], zoom, { animate: false });
+  } else if (state.course.scaleLocked) {
     map.setZoom(zoomForScale(map.getCenter().lat, currentScaleLock()), { animate: false });
   }
   updateScaleChip();
@@ -446,8 +458,9 @@ function applyPaperLayout() {
   const preview = currentPreviewMode();
   const fitScale = Math.min((hostW - 72) / g.sheetW, (hostH - 72) / g.sheetH, 6);
   const calibrated = calibratedPxPerMm();
+  const minFitScale = window.innerWidth <= 600 ? 0.35 : 0.7;
   const screenScale =
-    preview === "fit" ? Math.max(0.7, fitScale) : calibrated || SCREEN_MM_PX;
+    preview === "fit" ? Math.max(minFitScale, fitScale) : calibrated || SCREEN_MM_PX;
   lastScreenScale = screenScale;
   const root = document.body.style;
   const setPx = (name, mm) => root.setProperty(name, `${(mm * screenScale).toFixed(2)}px`);
@@ -494,6 +507,46 @@ function applyPaper() {
   map.invalidateSize();
   renderGrid();
   updatePaperInfo();
+}
+
+/**
+ * Resize the print area while keeping the same geographic extent when scale is
+ * unlocked. A larger page then gives the same neighbourhood more paper space
+ * (larger printed features) instead of merely revealing more ground. A locked
+ * denominator remains exact and therefore naturally covers more ground.
+ */
+function changePaperFormat({ paper = state.course.paperSize, orientation = currentOrientation() }) {
+  const oldGeometry = pageGeometryMm(state.course.paperSize || "A4", currentOrientation());
+  const oldZoom = map.getZoom();
+  const center = map.getCenter();
+  const locked = state.course.scaleLocked;
+
+  state.course.paperSize = paper;
+  state.course.orientation = normalizeOrientation(orientation);
+  applyPaper();
+
+  if (!locked) {
+    const newGeometry = pageGeometryMm(state.course.paperSize, currentOrientation());
+    const extentRatio = Math.min(
+      newGeometry.mapW / oldGeometry.mapW,
+      newGeometry.mapH / oldGeometry.mapH
+    );
+    if (Number.isFinite(extentRatio) && extentRatio > 0) {
+      const targetZoom = Math.max(
+        map.getMinZoom(),
+        Math.min(map.getMaxZoom(), oldZoom + Math.log2(extentRatio))
+      );
+      map.setView(center, targetZoom, { animate: false });
+      // Keep the lock button and scale selector aligned with the new live scale.
+      state.course.scaleLock = Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
+      syncScaleSelect();
+    }
+  }
+
+  updateScaleChip();
+  updatePaperInfo();
+  renderSheetInfo();
+  return locked;
 }
 
 function updatePaperInfo() {
@@ -1206,19 +1259,35 @@ function bind() {
   });
   document.getElementById("paper-size").addEventListener("change", (event) => {
     remember();
-    state.course.paperSize = event.target.value;
-    applyPaper();
-    renderSheetInfo();
+    const locked = changePaperFormat({ paper: event.target.value });
     persist();
-    toast(t(`紙張已改為 ${state.course.paperSize}，白紙＝列印頁`, `Paper set to ${state.course.paperSize}`));
+    toast(
+      locked
+        ? t(
+            `紙張已改為 ${state.course.paperSize}；比例仍鎖定，會顯示更大範圍。想放大同一地區，請先解鎖比例。`,
+            `${state.course.paperSize} selected. Scale stays locked, so the map covers more ground. Unlock to enlarge the same area.`
+          )
+        : t(
+            `紙張已改為 ${state.course.paperSize}；地圖已按新紙幅調整，盡量保留同一地區。`,
+            `${state.course.paperSize} selected. The map was rescaled to keep the same area on the new page.`
+          )
+    );
   });
   document.getElementById("paper-orientation").addEventListener("change", (event) => {
     remember();
-    state.course.orientation = normalizeOrientation(event.target.value);
-    applyPaper();
-    renderSheetInfo();
+    const locked = changePaperFormat({ orientation: event.target.value });
     persist();
-    toast(t(`紙張已改為 ${orientationLabel(currentOrientation())}`, `Orientation set to ${orientationLabel(currentOrientation(), true)}`));
+    toast(
+      locked
+        ? t(
+            `方向已改為${orientationLabel(currentOrientation())}；比例仍鎖定。`,
+            `Orientation set to ${orientationLabel(currentOrientation(), true)}; scale stays locked.`
+          )
+        : t(
+            `方向已改為${orientationLabel(currentOrientation())}；地圖已重新貼合紙面。`,
+            `Orientation set to ${orientationLabel(currentOrientation(), true)}; map adjusted to the page.`
+          )
+    );
   });
   document.getElementById("screen-preview").addEventListener("change", (event) => {
     state.previewMode = event.target.value === "actual" ? "actual" : "fit";
@@ -1473,7 +1542,11 @@ function boot() {
   const savedAll = loadAll();
   const saved = savedAll.current;
   if (savedAll.layer) state.layer = normalizeLayer(savedAll.layer);
-  if (savedAll.previewMode === "actual" || savedAll.previewMode === "fit") {
+  // Always fit the paper on phones/tablets; a previously saved desktop "actual mm"
+  // view would otherwise crop most of the page horizontally on a small screen.
+  if (window.innerWidth <= 900) {
+    state.previewMode = "fit";
+  } else if (savedAll.previewMode === "actual" || savedAll.previewMode === "fit") {
     state.previewMode = savedAll.previewMode;
   }
   if (typeof savedAll.screenWidthCm === "number" && savedAll.screenWidthCm > 0) {

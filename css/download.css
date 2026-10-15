@@ -238,3 +238,46 @@ body.page {
   background: rgba(255,255,255,.08);
 }
 .topbar a.nav:hover { background: rgba(255,255,255,.16); }
+
+.qgis-links { margin-top: 12px; }
+.file.qgis-download {
+  border-color: rgba(31, 122, 69, .42);
+  background: #f3fff5;
+}
+.file.qgis-download:hover { background: #e7f4ea; }
+.qgis-steps { padding-left: 22px; }
+.qgis-steps li { margin: 8px 0; }
+.qgis-steps code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #efe8d8;
+  font-size: .92em;
+  overflow-wrap: anywhere;
+}
+.qgis-tip {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--gold);
+  border-radius: 10px;
+  background: #fff8e6;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.cta-link {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--forest-2);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .page-inner { padding: 14px 10px 40px; }
+  .hero { padding: 18px 16px; }
+  .hero h1 { font-size: clamp(22px, 7vw, 28px); }
+  .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tabs button { min-height: 42px; padding: 8px 9px; line-height: 1.25; }
+  .card { padding: 12px; }
+  .file-grid { grid-template-columns: 1fr; }
+  .countryside-grid { grid-template-columns: 1fr; }
+  .compare { display: block; overflow-x: auto; white-space: nowrap; }
+}
