@@ -213,7 +213,11 @@
                     <div>SCOUT SYSTEM<br /><small>設計＝列印</small></div>
                   </div>
                 </header>
-                <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
+                <!-- map-frame＝紙面圖框（永遠正對紙邊）；#map 會轉少少，令方格北向上，同紙本 HM20C 一樣。 -->
+                <div class="map-frame" id="map-frame">
+                  <div id="map" role="application" aria-label="香港地圖（白紙＝列印範圍）"></div>
+                  <div class="north-point" id="north-point" aria-hidden="true"></div>
+                </div>
                 <footer class="sheet-foot">
                   <div>△ 起點　○ 檢查點　◎ 終點　紫紅為路線套印　·　方格數字 E/N<span class="contour-legend">　·　<i class="contour-swatch" aria-hidden="true"></i>等高線每 20 m</span></div>
                   <div>Map from Lands Department　© Scout System　參加者用紙圖，無需手機</div>
@@ -274,6 +278,7 @@
           <button class="chip" id="btn-scale-lock" type="button">🔒 鎖定比例</button>
         </div>
         <button class="chip on" id="btn-grid" type="button">UTM 方格網</button>
+        <button class="chip on" id="btn-paper-north" type="button" title="紙本 HM20C 以方格北向上（圖廓同方格線平行）；按一下轉回真北向上">🧭 方格北向上</button>
         <button class="chip" id="btn-contours" type="button" aria-pressed="false" title="顯示／隱藏等高線（地政總署 iB20000，每 20 m；快捷鍵 E）">等高線</button>
         <button class="chip" id="btn-fit-course" type="button">對齊路線</button>
         <button class="chip" id="btn-locate" type="button">我的位置</button>

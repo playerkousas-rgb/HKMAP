@@ -60,6 +60,29 @@ export function utmZoneForLng(lng) {
   return lng < 114.0 ? 49 : 50;
 }
 
+/** UTM 中央子午線（東經度數）：zone 49＝111°E，zone 50＝117°E。 */
+export const UTM_CENTRAL_MERIDIAN = { 49: 111, 50: 117 };
+
+/**
+ * 方格收斂角（grid convergence，度）：UTM 方格北與真北的夾角。
+ * 正值＝方格北在真北以東；負值＝方格北在真北以西。
+ * 香港離中央子午線 2–3°，所以約 ±0.9–1.1°（用 atan(tan Δλ·sin φ)，誤差 < 0.01°）。
+ */
+export function gridConvergenceDeg(lat, lng, zone = utmZoneForLng(lng)) {
+  const cm = UTM_CENTRAL_MERIDIAN[zone] ?? 117;
+  const dLng = ((lng - cm) * Math.PI) / 180;
+  const phi = (lat * Math.PI) / 180;
+  return (Math.atan(Math.tan(dLng) * Math.sin(phi)) * 180) / Math.PI;
+}
+
+/**
+ * 要令方格北向上（＝紙本 HM20C 的擺法：圖廓與方格線平行），
+ * 地圖內容要順時針轉幾多度（正值＝順時針，可直接用喺 CSS rotate）。
+ */
+export function gridNorthUpRotationDeg(lat, lng, zone = utmZoneForLng(lng)) {
+  return -gridConvergenceDeg(lat, lng, zone);
+}
+
 function utmEpsg(zone) {
   return zone === 49 ? "EPSG:32649" : "EPSG:32650";
 }
