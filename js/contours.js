@@ -28,6 +28,16 @@ export const CONTOUR_MIN_ZOOM = 14;
 export const CONTOUR_ATTRIBUTION =
   `等高線 iB20000 © Lands Department（經 <a href="${CONTOUR_ITEM_URL}" target="_blank" rel="noopener">Esri China (HK)</a>）`;
 
+/** 紙圖底圖用柔和棕色；其他底圖保留原有配色及所有線寬。 */
+export function contourStyleForBasemap(basemap, isIndex) {
+  const palette = basemap === "imagery"
+    ? { color: "#ffd27f", opacity: 0.92 }
+    : basemap === "countryside"
+    ? { color: "#8a4a14", opacity: 0.85 }
+    : { color: "#be998a", opacity: 0.85 };
+  return { ...palette, weight: isIndex ? 1.5 : 0.75 };
+}
+
 const R = 6378137;
 const HALF = Math.PI * R; // Web Mercator 半周長
 const DEG = 180 / Math.PI;
@@ -350,15 +360,8 @@ export function createContourOverlay(map, options = {}) {
     moveTimer = setTimeout(update, 60);
   });
 
-  function palette() {
-    if (basemap === "imagery") return { color: "#ffd27f", opacity: 0.92 };
-    if (basemap === "countryside") return { color: "#8a4a14", opacity: 0.85 };
-    return { color: "#b5651d", opacity: 0.85 };
-  }
-
   function lineStyle(isIndex) {
-    const p = palette();
-    return { color: p.color, opacity: p.opacity, weight: isIndex ? 1.5 : 0.75 };
+    return contourStyleForBasemap(basemap, isIndex);
   }
 
   function buildLayers(tile) {
@@ -784,6 +787,7 @@ export function createContourOverlay(map, options = {}) {
         tile.normal?.setStyle(lineStyle(false));
         tile.index?.setStyle(lineStyle(true));
       }
+      labelPane.classList.toggle("on-hm20c", basemap === "hm20c");
       labelPane.classList.toggle("on-imagery", basemap === "imagery");
     },
     /** 高度數字要避開的位置：() => [{ lat, lng, r, dx?, dy? }]（r、dx、dy 以 px 計）。 */

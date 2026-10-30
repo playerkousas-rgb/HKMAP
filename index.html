@@ -17,6 +17,26 @@
   <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body data-paper="A4" data-orientation="landscape" data-preview="fit">
+  <!-- 只調整地政總署圖磚顯示顏色，圖磚資料和地圖坐標不變。 -->
+  <svg aria-hidden="true" width="0" height="0" style="position:absolute;overflow:hidden;pointer-events:none">
+    <defs>
+      <filter id="hm20c-basemap-colours" color-interpolation-filters="sRGB">
+        <feColorMatrix type="saturate" values="0.85" />
+        <feComponentTransfer>
+          <feFuncR type="table" tableValues="0 0.0784 0.1569 0.2431 0.3216 0.4745 0.7333 0.9333 1" />
+          <feFuncG type="table" tableValues="0 0.0784 0.1569 0.2431 0.3216 0.4745 0.7333 0.9333 1" />
+          <feFuncB type="table" tableValues="0 0.0784 0.1569 0.2510 0.3333 0.4941 0.7608 0.9569 1" />
+          <feFuncA type="identity" />
+        </feComponentTransfer>
+      </filter>
+      <filter id="hm20c-label-colours" color-interpolation-filters="sRGB">
+        <feColorMatrix type="matrix" values="0.8 -0.3 0.7 0 -0.2
+          -0.35 0.75 0.8 0 -0.2
+          -0.4 0.6 1 0 -0.2
+          0 0 0 1 0" />
+      </filter>
+    </defs>
+  </svg>
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -291,7 +311,7 @@
       <h3>已連結的地圖</h3>
       <p><strong>HM20C / iB20000</strong> — 紙本 HM20C 是 1:20 000 彩色地形圖。對應電子產品是 <strong>iB20000 數碼地形圖</strong>，2026 年 2 月官方售價 <strong>免費</strong>。本畫面用官方
         <a href="https://portal.csdi.gov.hk/csdi-webpage/apidoc/TopographicMapAPI" target="_blank" rel="noopener">Topographic Map API</a>
-        顯示同一套 i-系列資料。</p>
+        顯示同一套 i-系列資料。底圖、地名及等高線的顏色已調整至較接近紙本 HM20C；這只是顯示配色，並非紙本原圖，地圖資料和位置不變。</p>
       <p><strong>郊遊圖</strong> — 以 <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>（OSM 等高線＋山徑）作郊野規劃底圖，突顯遠足徑，適合野外定向；官方郊區地圖紙本仍需到地政總署購買，此圖磚僅作策劃參考。</p>
       <p><strong>航空照片</strong> — 地政總署航空照片 API。</p>
       <p><strong>等高線（可開關）</strong> — 按右上角「等高線」（或左欄勾選、快捷鍵 E）即可顯示／隱藏。資料係地政總署 <strong>iB20000</strong> 嘅等高線圖層 <code>ELEVLINE</code>：每 20 m 一條、每 100 m 加粗，數字＝高度（米，主水平基準以上）。畫面經 Esri China (HK) 喺

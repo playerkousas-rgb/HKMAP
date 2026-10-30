@@ -17,5 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: 紙圖配色測試
+        run: npm test
       - name: node scripts/slim-guard.mjs
         run: node scripts/slim-guard.mjs
