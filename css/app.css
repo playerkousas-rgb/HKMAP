@@ -388,6 +388,15 @@ button, input, select, textarea { font-family: inherit; }
   flex: 0 0 auto;
 }
 
+/* 近似紙本 HM20C 配色：只處理官方底圖／地名字磚，勿影響航照、郊遊圖或路線套印。
+   SVG 濾鏡不讀取或改寫跨域圖磚；畫面和列印共用，無法補上原圖磚未提供的地物。 */
+body[data-basemap="hm20c"] .hm20c-base-tiles .leaflet-tile {
+  filter: url("#hm20c-basemap-colours");
+}
+body[data-basemap="hm20c"] .landsd-label-tiles .leaflet-tile {
+  filter: url("#hm20c-label-colours");
+}
+
 .sheet-foot {
   min-height: var(--foot-h-screen, 19px);
   padding: 0 var(--pad-x-screen, 16px) var(--pad-y-screen, 12px);
@@ -449,6 +458,7 @@ body:not(.leader) .leader-only { display: none; }
   text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 1px #fff;
 }
 .contour-label.is-index span { font-weight: 700; }
+.contour-label-pane.on-hm20c .contour-label span { color: #9d7a6e; }
 .contour-label-pane.on-imagery .contour-label span {
   color: #ffe2a3;
   text-shadow: 0 0 2px #2a1a08, 0 0 2px #2a1a08, 0 0 1px #2a1a08;
@@ -463,6 +473,7 @@ body:not(.contours-on) .contour-legend { display: none; }
   border-top: 1.5px solid #b5651d;
   vertical-align: middle;
 }
+body[data-basemap="hm20c"] .contour-swatch { border-top-color: #be998a; }
 
 .panel {
   background: var(--paper-2);

@@ -391,8 +391,8 @@ const map = L.map("map", {
   maxBoundsViscosity: 0.7,
 });
 
-const labels = L.tileLayer(landsdUrl("label", "tc"), tileOptions({ pane: "overlayPane", opacity: 0.95 }));
-const basemap = L.tileLayer(landsdUrl("basemap"), tileOptions({ minZoom: 10 }));
+const labels = L.tileLayer(landsdUrl("label", "tc"), tileOptions({ pane: "overlayPane", opacity: 0.95, className: "landsd-label-tiles" }));
+const basemap = L.tileLayer(landsdUrl("basemap"), tileOptions({ minZoom: 10, className: "hm20c-base-tiles" }));
 const imagery = L.tileLayer(landsdUrl("imagery"), tileOptions({ minZoom: 10 }));
 const countryside = L.tileLayer(COUNTRYSIDE_TILE_URL, countrysideTileOptions());
 
@@ -417,6 +417,7 @@ const contours = createContourOverlay(map, {
 contours.setAvoidProvider(contourAvoidPoints);
 
 function applyBasemap() {
+  document.body.dataset.basemap = state.layer;
   [basemap, imagery, countryside].forEach((l) => {
     if (map.hasLayer(l)) map.removeLayer(l);
   });

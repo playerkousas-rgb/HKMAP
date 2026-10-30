@@ -20,7 +20,7 @@
 | 航空照片 | [Imagery Map API](https://portal.csdi.gov.hk/csdi-webpage/apidoc/ImageryMapAPI) | 官方航空照片，方便核對現場 |
 | 等高線（可開關） | 地政總署 iB20000 `ELEVLINE`，經 [Esri China (HK) ArcGIS Online 公開圖層](https://www.arcgis.com/home/item.html?id=566289c35c214178b572a7e934a1cd9a) 即時查詢 | 每 20 m 一條、每 100 m 加粗，附高度數字（米）；比例約 1:33 000 或更大先顯示，只供參考 |
 
-**注意：** iB20000 是數碼地形**資料**，不是紙本 HM20C 的彩色 PDF 掃描。下載原檔適合 QGIS／CAD／離線列印。
+**注意：** iB20000 是數碼地形**資料**，不是紙本 HM20C 的彩色 PDF 掃描。HM20C / iB20000 模式的底圖、地名及等高線只調整顯示顏色，盡量接近紙本配色；地圖資料、坐標及比例不變。航空照片及郊遊圖保留原有配色。下載原檔適合 QGIS／CAD／離線列印。
 
 ## 城市定向功能
 
