@@ -10,6 +10,8 @@ import { readFileSync } from "node:fs";
 import {
   gridConvergenceDeg,
   gridNorthUpRotationDeg,
+  hm20cSheetAngles,
+  nearestHm20cSheet,
   utmZoneForLng,
 } from "../js/hkgeo.js";
 
@@ -67,4 +69,28 @@ test("頁面有齊紙圖方位的接駁", () => {
   assert.match(css, /\.map-frame\s*\{/);
   assert.match(css, /body\[data-paper-north="grid"\] #map/);
   assert.match(css, /rotate\(var\(--map-rot/);
+});
+
+test("HM20C 16 幅各有自己固定的方位（幅 1 圖例除外）", () => {
+  const sheets = hm20cSheetAngles();
+  assert.equal(sheets.length, 15);
+  // 每幅角度不同（同紙本一樣，幅幅自己一個擺法）
+  assert.ok(new Set(sheets.map((s) => s.rotation.toFixed(2))).size >= 8);
+  for (const sheet of sheets) {
+    assert.ok(Math.abs(sheet.rotation) > 0.5 && Math.abs(sheet.rotation) < 1.5, `${sheet.id}: ${sheet.rotation}`);
+    // 114° 以西（zone 49）方格北在真北以東 → 逆時針（負）；以東（zone 50）相反。
+    assert.equal(sheet.rotation > 0, sheet.zone === 50, `${sheet.id} zone ${sheet.zone} rotation ${sheet.rotation}`);
+  }
+});
+
+test("地圖中心按最近圖幅中心分幅（幅 1 圖例永遠唔會被選中）", () => {
+  assert.equal(nearestHm20cSheet(22.3815, 114.1898).id, "7"); // 沙田
+  assert.equal(nearestHm20cSheet(22.289, 113.941).id, "9"); // 東涌
+  assert.equal(nearestHm20cSheet(22.4, 114.3).id, "8"); // 西貢
+  assert.equal(nearestHm20cSheet(22.209, 114.029).id, "14"); // 長洲
+  assert.notEqual(nearestHm20cSheet(22.352, 114.158).id, "1");
+  // 同一幅內任取兩點，角度一定相同（同紙本一樣唔會邊行邊轉）。
+  const a = nearestHm20cSheet(22.375, 114.185);
+  const b = nearestHm20cSheet(22.39, 114.2);
+  if (a.id === b.id) assert.equal(a.rotation, b.rotation);
 });

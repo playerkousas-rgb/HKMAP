@@ -865,6 +865,28 @@ label.field textarea { min-height: 60px; resize: vertical; }
 .dialog p { font-size: 13px; line-height: 1.65; color: #33413b; }
 .dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 
+/* 離線底圖（活動前下載圖磚；見 js/offline.js 同 sw.js） */
+.offline-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.offline-row > span { font-weight: 700; color: #33413b; min-width: 36px; }
+.offline-row label { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
+.offline-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(20, 32, 27, .14);
+  overflow: hidden;
+  margin: 6px 0 2px;
+}
+.offline-bar > i { display: block; height: 100%; width: 0; background: var(--forest, #1f4d3a); transition: width .2s; }
+#offline-chip[hidden] { display: none !important; }
+body.is-offline #offline-chip { display: inline-block; }
+
 .course-icon {
   background: transparent !important;
   border: 0 !important;

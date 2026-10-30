@@ -7,7 +7,7 @@
   "scripts": {
     "start": "python3 -m http.server 8080 --bind 0.0.0.0",
     "check:slim": "node scripts/slim-guard.mjs",
-    "test": "node --test scripts/test-map-colours.mjs scripts/test-geodesy.mjs",
+    "test": "node --test scripts/test-map-colours.mjs scripts/test-geodesy.mjs scripts/test-offline.mjs",
     "check": "npm run test && npm run check:slim"
   },
   "dependencies": {},

@@ -13,6 +13,7 @@ import {
   gridRefs,
   landsdUrl,
   magneticBearing,
+  nearestHm20cSheet,
   normalizeOrientation,
   pageGeometryMm,
   paperAreaMeters,
@@ -26,6 +27,7 @@ import {
   zoomForScale,
 } from "./hkgeo.js";
 import { drawOverprint, orderedControls as orderControls } from "./overprint.js";
+import { setupOffline } from "./offline.js";
 import { CONTOUR_MIN_ZOOM, createContourOverlay } from "./contours.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
@@ -206,6 +208,7 @@ function applySnapshot(snap) {
   if (!prevScaleLocked && state.course.scaleLocked) setZoomControls(false);
   applyBasemap();
   applyPaper();
+  setupOffline(map, { t, toast, askConfirm });
   renderCourse();
   renderMeasure();
   renderSidebar();
@@ -658,12 +661,24 @@ function fmtLen(m) {
 /* ---------- 紙圖方位：同紙本 HM20C 一樣，方格北向上 ----------
  * 紙本 HM20C 的圖廓同方格線平行（方格北向上），真北喺紙上係斜嘅。
  * 香港的 UTM 方格收斂角約 0.9–1.2°（zone 49 向東、zone 50 向西），
- * 所以本系統按地圖中心計出 γ，將整幅底圖轉 −γ，方格網打直，印出嚟就同紙圖同一擺法。 */
+ * 本系統按 HM20C 16 幅逐幅計：用該幅中心的 γ，整幅底圖轉 −γ，
+ * 方格網打直、紙邊同方格線平行；同一幅內角度固定，幅與幅之間角度唔同。 */
 let mapRotationRad = 0;
+
+/**
+ * 紙中心屬於哪一幅 HM20C（按 16 幅公佈中心做最近點分幅，屬近似幅界），
+ * 連同該幅的固定方位（zone ＋ 收斂角）。紙本一幅一個擺法，同一幅內唔會邊行邊轉。
+ */
+function currentSheetInfo() {
+  const c = map.getCenter();
+  return nearestHm20cSheet(c.lat, c.lng);
+}
 
 /** 紙圖要轉幾多度（順時針為正）；「真北向上」＝0。 */
 function paperRotationDeg() {
   if (state.paperNorth === "true") return 0;
+  const sheet = currentSheetInfo();
+  if (sheet) return sheet.rotation; // 每幅唔同：zone 49 順時針、zone 50 逆時針，同紙本一樣
   const c = map.getCenter();
   return gridNorthUpRotationDeg(c.lat, c.lng, utmZoneForLng(c.lng));
 }
@@ -675,6 +690,7 @@ function applyMapRotation() {
   if (document.body.dataset.paperNorth !== mode) document.body.dataset.paperNorth = mode;
   document.body.style.setProperty("--map-rot", `${deg.toFixed(3)}deg`);
   renderNorthPoint();
+  syncPaperNorthButton();
 }
 
 /** 北針：方格北（紙圖向上）／真北／磁北三支箭，同紙本 HM20C 圖邊資料一樣。 */
@@ -682,7 +698,8 @@ function renderNorthPoint() {
   const el = document.getElementById("north-point");
   if (!el) return;
   const c = map.getCenter();
-  const conv = gridConvergenceDeg(c.lat, c.lng, utmZoneForLng(c.lng));
+  const sheet = currentSheetInfo();
+  const conv = sheet ? sheet.convergence : gridConvergenceDeg(c.lat, c.lng, utmZoneForLng(c.lng));
   const offset = state.paperNorth === "true" ? 0 : -conv;
   const ang = (deg) => (Math.abs(deg) < 0.05 ? "" : ` ${Math.abs(deg).toFixed(1)}°`);
   const gridDeg = conv + offset;
@@ -717,8 +734,13 @@ function syncPaperNorthButton() {
   const btn = document.getElementById("btn-paper-north");
   if (!btn) return;
   const grid = state.paperNorth !== "true";
+  const sheet = currentSheetInfo();
+  const deg = Math.abs(paperRotationDeg()).toFixed(2);
   btn.classList.toggle("on", grid);
-  btn.textContent = grid ? "🧭 方格北向上" : "🧭 真北向上";
+  btn.textContent = grid ? `🧭 方格北 ${deg}°` : "🧭 真北向上";
+  btn.title = grid
+    ? `同紙本 HM20C 一樣：方格北向上（${sheet ? `第 ${sheet.id} 幅 ${sheet.name}，` : ""}轉 ${deg}°）。按一下轉回真北向上。`
+    : "真北向上（方格線會斜）。按一下轉回方格北向上（同紙本 HM20C 一樣）。";
 }
 
 function setPaperNorth(mode, { silent = false } = {}) {
@@ -731,12 +753,13 @@ function setPaperNorth(mode, { silent = false } = {}) {
   updateOffPaper();
   persist();
   if (silent) return;
-  const deg = Math.abs(paperRotationDeg());
+  const deg = Math.abs(paperRotationDeg()).toFixed(2);
+  const sheet = currentSheetInfo();
   toast(
     state.paperNorth === "grid"
       ? t(
-          `紙圖方位：方格北向上（轉 ${deg.toFixed(2)}°，同紙本 HM20C 一樣）`,
-          `Grid north up (rotated ${deg.toFixed(2)}°, same as paper HM20C)`
+          `紙圖方位：方格北向上（${sheet ? `第 ${sheet.id} 幅 ${sheet.name}，` : ""}轉 ${deg}°，同紙本 HM20C 一樣）`,
+          `Grid north up (${sheet ? `sheet ${sheet.id} ${sheet.nameEn}, ` : ""}rotated ${deg}°, like paper HM20C)`
         )
       : t("紙圖方位：真北向上（未旋轉，方格線會斜）", "True north up (no rotation; grid lines tilt)")
   );
@@ -1554,7 +1577,7 @@ function renderSheetInfo() {
   const s = state.course.scaleLocked
     ? currentScaleLock()
     : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
-  let meta = `${kind}　·　${mode}　·　${state.course.paperSize || "A4"} ${orientationLabel(orientation)}　·　比例 ${scaleLabel(s)}${state.course.scaleLocked ? "（鎖定）" : ""}　·　${list.length} 個點　·　約 ${distTxt}　·　${state.paperNorth === "true" ? "真北向上" : "方格北向上（HM20C）"}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
+  let meta = `${kind}　·　${mode}　·　${state.course.paperSize || "A4"} ${orientationLabel(orientation)}　·　比例 ${scaleLabel(s)}${state.course.scaleLocked ? "（鎖定）" : ""}　·　${list.length} 個點　·　約 ${distTxt}　·　${state.paperNorth === "true" ? "真北向上" : `方格北向上 ${Math.abs(paperRotationDeg()).toFixed(2)}°（HM20C）`}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
   if (state.course.meet) meta += `　·　集合 ${state.course.meet}`;
   if (state.course.cutoff) meta += `　·　截止 ${state.course.cutoff}`;
   if (state.course.sos) meta += `　·　緊急 ${state.course.sos}`;

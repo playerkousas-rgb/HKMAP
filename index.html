@@ -73,6 +73,7 @@
         </div>
         <a class="ghost" href="mock.html" style="text-decoration:none;display:inline-block">教學</a>
         <a class="ghost" href="download.html" style="text-decoration:none;display:inline-block">地圖下載</a>
+        <button class="ghost" id="btn-offline" type="button" title="活動前先下載底圖，現場冇網絡都用得">📥 離線</button>
         <button class="ghost" id="btn-lang" type="button">EN</button>
         <button class="ghost" id="btn-about" type="button">地圖來源</button>
         <button class="ghost" id="btn-report" type="button" data-report-open title="問題回報 · 意見回饋（Scout Admin 統一處理，可匿名）">🐛 回報</button>
@@ -283,6 +284,7 @@
         <button class="chip" id="btn-fit-course" type="button">對齊路線</button>
         <button class="chip" id="btn-locate" type="button">我的位置</button>
         <button class="chip warn-chip" id="offpaper-chip" type="button" hidden></button>
+        <button class="chip warn-chip" id="offline-chip" type="button" hidden>📴 離線模式</button>
       </div>
       <div class="coord-readout" id="readout"></div>
       <aside class="credit">
@@ -342,6 +344,34 @@
       </p>
       <div class="actions">
         <button class="solid" id="about-close" type="button">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="offline" class="modal" role="dialog" aria-labelledby="offline-title" aria-modal="true">
+    <div class="dialog">
+      <h3 id="offline-title">📥 離線底圖（活動前先下載）</h3>
+      <p>下載後，即使現場冇訊號都睇得到、印得到。地圖磚只存喺呢部機嘅瀏覽器，唔會上傳，亦唔會經本站後端。</p>
+      <div class="offline-row">
+        <span>範圍</span>
+        <label><input type="radio" name="offline-area" value="paper" checked /> 呢張紙（＋少少邊界）</label>
+        <label><input type="radio" name="offline-area" value="hk" /> 全港</label>
+      </div>
+      <div class="offline-row">
+        <span>細節</span>
+        <label><input type="radio" name="offline-detail" value="20000" /> 到 1:20 000</label>
+        <label><input type="radio" name="offline-detail" value="10000" checked /> 到 1:10 000</label>
+        <label><input type="radio" name="offline-detail" value="5000" /> 到 1:5 000</label>
+        <label><input type="radio" name="offline-detail" value="2500" /> 到 1:2 500</label>
+      </div>
+      <p class="notice" id="offline-estimate"></p>
+      <div class="offline-bar" id="offline-bar" hidden><i></i></div>
+      <p class="notice" id="offline-status"></p>
+      <p class="notice">建議用 Wi-Fi 下載，下載期間保持畫面開啟。iOS／部分瀏覽器會在長期冇用後自動清理網站資料，出發前按一次「開始下載」就會重新抓到最新底圖。</p>
+      <div class="actions">
+        <button class="ghost paper" id="offline-clear" type="button">清除離線底圖</button>
+        <button class="ghost paper" id="offline-close" type="button">關閉</button>
+        <button class="solid" id="offline-start" type="button">開始下載</button>
       </div>
     </div>
   </div>
