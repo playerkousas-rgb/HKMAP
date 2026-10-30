@@ -8,9 +8,12 @@ import {
   formatDeg,
   fromUtm,
   gridBearing,
+  gridConvergenceDeg,
+  gridNorthUpRotationDeg,
   gridRefs,
   landsdUrl,
   magneticBearing,
+  nearestHm20cSheet,
   normalizeOrientation,
   pageGeometryMm,
   paperAreaMeters,
@@ -24,6 +27,7 @@ import {
   zoomForScale,
 } from "./hkgeo.js";
 import { drawOverprint, orderedControls as orderControls } from "./overprint.js";
+import { setupOffline } from "./offline.js";
 import { CONTOUR_MIN_ZOOM, createContourOverlay } from "./contours.js";
 
 const STORAGE_KEY = "scout-system-courses-v1";
@@ -40,6 +44,8 @@ const state = {
   lang: "zh",
   gridOn: true,
   gridLabelsOn: true,
+  // 紙圖方位：預設「方格北向上」＝同紙本 HM20C 一樣（整幅圖轉約 0.9–1.2°）；可轉回真北向上。
+  paperNorth: "grid",
   // 等高線（iB20000 ELEVLINE，每 20 m）：預設關閉，用家開咗會記住。
   contoursOn: false,
   contourLabelsOn: true,
@@ -202,6 +208,7 @@ function applySnapshot(snap) {
   if (!prevScaleLocked && state.course.scaleLocked) setZoomControls(false);
   applyBasemap();
   applyPaper();
+  setupOffline(map, { t, toast, askConfirm });
   renderCourse();
   renderMeasure();
   renderSidebar();
@@ -390,6 +397,8 @@ const map = L.map("map", {
   maxBounds: HK_BOUNDS,
   maxBoundsViscosity: 0.7,
 });
+enableRotatedPointerMapping();
+enableRotatedDragging();
 
 const labels = L.tileLayer(landsdUrl("label", "tc"), tileOptions({ pane: "overlayPane", opacity: 0.95, className: "landsd-label-tiles" }));
 const basemap = L.tileLayer(landsdUrl("basemap"), tileOptions({ minZoom: 10, className: "hm20c-base-tiles" }));
@@ -524,6 +533,7 @@ function applyPaperLayout() {
   root.setProperty("--preview-inv", (1 / previewScale).toFixed(4));
   // 版權字樣（反向縮放後）最闊只可以等於畫面上地圖嘅闊度。
   root.setProperty("--attr-max-w", `${Math.max(120, g.mapW * screenScale - 16).toFixed(0)}px`);
+  applyMapRotation();
   syncPreviewBox();
 }
 
@@ -648,6 +658,225 @@ function fmtLen(m) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
+/* ---------- 紙圖方位：同紙本 HM20C 一樣，方格北向上 ----------
+ * 紙本 HM20C 的圖廓同方格線平行（方格北向上），真北喺紙上係斜嘅。
+ * 香港的 UTM 方格收斂角約 0.9–1.2°（zone 49 向東、zone 50 向西），
+ * 本系統按 HM20C 16 幅逐幅計：用該幅中心的 γ，整幅底圖轉 −γ，
+ * 方格網打直、紙邊同方格線平行；同一幅內角度固定，幅與幅之間角度唔同。 */
+let mapRotationRad = 0;
+
+/**
+ * 紙中心屬於哪一幅 HM20C（按 16 幅公佈中心做最近點分幅，屬近似幅界），
+ * 連同該幅的固定方位（zone ＋ 收斂角）。紙本一幅一個擺法，同一幅內唔會邊行邊轉。
+ */
+function currentSheetInfo() {
+  const c = map.getCenter();
+  return nearestHm20cSheet(c.lat, c.lng);
+}
+
+/** 紙圖要轉幾多度（順時針為正）；「真北向上」＝0。 */
+function paperRotationDeg() {
+  if (state.paperNorth === "true") return 0;
+  const sheet = currentSheetInfo();
+  if (sheet) return sheet.rotation; // 每幅唔同：zone 49 順時針、zone 50 逆時針，同紙本一樣
+  const c = map.getCenter();
+  return gridNorthUpRotationDeg(c.lat, c.lng, utmZoneForLng(c.lng));
+}
+
+function applyMapRotation() {
+  const deg = paperRotationDeg();
+  mapRotationRad = (deg * Math.PI) / 180;
+  const mode = state.paperNorth === "true" ? "true" : "grid";
+  if (document.body.dataset.paperNorth !== mode) document.body.dataset.paperNorth = mode;
+  document.body.style.setProperty("--map-rot", `${deg.toFixed(3)}deg`);
+  renderNorthPoint();
+  syncPaperNorthButton();
+}
+
+/** 北針：方格北（紙圖向上）／真北／磁北三支箭，同紙本 HM20C 圖邊資料一樣。 */
+function renderNorthPoint() {
+  const el = document.getElementById("north-point");
+  if (!el) return;
+  const c = map.getCenter();
+  const sheet = currentSheetInfo();
+  const conv = sheet ? sheet.convergence : gridConvergenceDeg(c.lat, c.lng, utmZoneForLng(c.lng));
+  const offset = state.paperNorth === "true" ? 0 : -conv;
+  const ang = (deg) => (Math.abs(deg) < 0.05 ? "" : ` ${Math.abs(deg).toFixed(1)}°`);
+  const gridDeg = conv + offset;
+  const trueDeg = offset;
+  const magDeg = offset - MAG_DECLINATION_WEST;
+  const arrows = [
+    { deg: gridDeg, colour: "#5b2d86", key: `方格北${ang(gridDeg)}` },
+    { deg: trueDeg, colour: "#22302a", key: `真北${ang(trueDeg)}` },
+    { deg: magDeg, colour: "#b45309", key: `磁北 ${MAG_DECLINATION_WEST}°W` },
+  ];
+  const svg =
+    `<svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">` +
+    `<circle cx="23" cy="26" r="18.5" fill="rgba(255,253,247,.55)" stroke="#9a958a" stroke-width=".8" />` +
+    arrows
+      .slice()
+      .reverse()
+      .map(
+        (a) =>
+          `<g transform="rotate(${a.deg.toFixed(2)} 23 26)">` +
+          `<line x1="23" y1="26" x2="23" y2="11" stroke="${a.colour}" stroke-width="2" stroke-linecap="round" />` +
+          `<path d="M23 7.6 l2.7 4.8 h-5.4 z" fill="${a.colour}" /></g>`
+      )
+      .join("") +
+    `</svg>` +
+    `<div class="north-key">` +
+    arrows.map((a) => `<span><i style="background:${a.colour}"></i>${a.key}</span>`).join("") +
+    `</div>`;
+  el.innerHTML = svg;
+}
+
+function syncPaperNorthButton() {
+  const btn = document.getElementById("btn-paper-north");
+  if (!btn) return;
+  const grid = state.paperNorth !== "true";
+  const sheet = currentSheetInfo();
+  const deg = Math.abs(paperRotationDeg()).toFixed(2);
+  btn.classList.toggle("on", grid);
+  btn.textContent = grid ? `🧭 方格北 ${deg}°` : "🧭 真北向上";
+  btn.title = grid
+    ? `同紙本 HM20C 一樣：方格北向上（${sheet ? `第 ${sheet.id} 幅 ${sheet.name}，` : ""}轉 ${deg}°）。按一下轉回真北向上。`
+    : "真北向上（方格線會斜）。按一下轉回方格北向上（同紙本 HM20C 一樣）。";
+}
+
+function setPaperNorth(mode, { silent = false } = {}) {
+  state.paperNorth = mode === "true" ? "true" : "grid";
+  applyMapRotation();
+  map.invalidateSize(); // 方格北向上時地圖容器會放大，要 Leaflet 重新量度
+  syncPaperNorthButton();
+  renderGrid();
+  renderSheetInfo();
+  updateOffPaper();
+  persist();
+  if (silent) return;
+  const deg = Math.abs(paperRotationDeg()).toFixed(2);
+  const sheet = currentSheetInfo();
+  toast(
+    state.paperNorth === "grid"
+      ? t(
+          `紙圖方位：方格北向上（${sheet ? `第 ${sheet.id} 幅 ${sheet.name}，` : ""}轉 ${deg}°，同紙本 HM20C 一樣）`,
+          `Grid north up (${sheet ? `sheet ${sheet.id} ${sheet.nameEn}, ` : ""}rotated ${deg}°, like paper HM20C)`
+        )
+      : t("紙圖方位：真北向上（未旋轉，方格線會斜）", "True north up (no rotation; grid lines tilt)")
+  );
+}
+
+/**
+ * 圖框轉了少少之後，Leaflet 預設直接減 bounding rect，位置會斜（邊位誤差可達十幾 px）。
+ * 這裡把滑鼠／手指的螢幕座標反轉旋轉＋除返預覽縮放，再變成 Leaflet 容器座標，
+ * 放 CP、拖 CP、拖地圖都準。
+ */
+function enableRotatedPointerMapping() {
+  map.mouseEventToContainerPoint = function (e) {
+    const el = this._container;
+    const src = e.touches && e.touches.length ? e.touches[0] : e;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const rect = el.getBoundingClientRect();
+    const cos = Math.cos(mapRotationRad);
+    const sin = Math.sin(mapRotationRad);
+    const absCos = Math.abs(cos);
+    const absSin = Math.abs(sin);
+    // rect（放大後的 bounding box）÷ 未轉動的大小＝CSS 縮放（預覽貼合、瀏覽器縮放）。
+    const sx = w ? rect.width / (w * absCos + h * absSin) : 1;
+    const sy = h ? rect.height / (h * absCos + w * absSin) : 1;
+    const dx = src.clientX - (rect.left + rect.width / 2);
+    const dy = src.clientY - (rect.top + rect.height / 2);
+    return L.point(
+      (dx * cos + dy * sin) / (sx || 1) + w / 2,
+      (-dx * sin + dy * cos) / (sy || 1) + h / 2
+    );
+  };
+}
+
+/**
+ * 拖地圖／拖檢查點要校正兩樣嘢（Leaflet 1.9.4，index.html 已鎖版本）：
+ *  1. 位移方向：畫面轉了 θ，要反轉旋轉，圖同標記才會跟住手指走（否則會斜行）；
+ *  2. 位移大細：Leaflet 用 bounding rect ÷ offsetWidth 估父層縮放，旋轉後 rect 會大 2–4%，
+ *     唔校正就會「行得慢過手指」。
+ * 只覆寫 Draggable 內部一個好細的函數；predrag（maxBounds 黏性）之後仍然會校正。
+ */
+function enableRotatedDragging() {
+  const proto = L.Draggable.prototype;
+  proto._updatePosition = function () {
+    const e = { originalEvent: this._lastEvent };
+    this.fire("predrag", e);
+    if (mapRotationRad && this._startPos && this._newPos) {
+      const cos = Math.cos(mapRotationRad);
+      const sin = Math.sin(mapRotationRad);
+      const absCos = Math.abs(cos);
+      const absSin = Math.abs(sin);
+      const w = map.getContainer().offsetWidth;
+      const h = map.getContainer().offsetHeight;
+      // 抵銷旋轉令 bounding rect 變大所造成的比例誤差（其餘縮放例如預覽貼合照舊保留）。
+      const kx = w ? (w * absCos + h * absSin) / w : 1;
+      const ky = h ? (h * absCos + w * absSin) / h : 1;
+      const dx = (this._newPos.x - this._startPos.x) * kx;
+      const dy = (this._newPos.y - this._startPos.y) * ky;
+      this._newPos = this._startPos.add(L.point(dx * cos + dy * sin, -dx * sin + dy * cos));
+    }
+    L.DomUtil.setPosition(this._element, this._newPos);
+    this.fire("drag", e);
+  };
+}
+
+/** 紙面圖框在 Leaflet 容器座標的半邊（px）。旋轉後 map.getBounds() 大過紙面，唔可以再用。 */
+function paperHalfPx() {
+  const g = pageGeometryMm(state.course.paperSize || "A4", currentOrientation());
+  return { w: (g.mapW * SCREEN_MM_PX) / 2, h: (g.mapH * SCREEN_MM_PX) / 2 };
+}
+
+/** 呢一點係唔係喺白紙（列印圖框）之內。 */
+function onPaper(latlng) {
+  const p = map.latLngToContainerPoint(latlng);
+  const size = map.getSize();
+  const half = paperHalfPx();
+  return Math.abs(p.x - size.x / 2) <= half.w && Math.abs(p.y - size.y / 2) <= half.h;
+}
+
+/**
+ * 紙面（圖框）在 Leaflet 容器座標的內接長方形 → latlng bounds。
+ * 「方格北向上」之後 #map 比圖框大少少，map.getBounds() 亦會大過紙面，
+ * 邊緣的方格數字要擺喺紙面之內，否則印出嚟會被圖框裁走。
+ */
+function visibleBounds() {
+  const size = map.getSize();
+  const half = paperHalfPx();
+  const rad = Math.abs(mapRotationRad);
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const w = Math.max(80, 2 * (half.w * cos - half.h * sin));
+  const h = Math.max(80, 2 * (half.h * cos - half.w * sin));
+  const cx = size.x / 2;
+  const cy = size.y / 2;
+  return L.latLngBounds(
+    [
+      [cx - w / 2, cy - h / 2],
+      [cx + w / 2, cy + h / 2],
+    ].map(([x, y]) => map.containerPointToLatLng(L.point(x, y)))
+  );
+}
+
+/** 一個 bounds 在某個 UTM zone 的東距／北距範圍。 */
+function zoneRange(zone, bounds) {
+  const pts = [
+    [bounds.getSouth(), bounds.getWest()],
+    [bounds.getSouth(), bounds.getEast()],
+    [bounds.getNorth(), bounds.getWest()],
+    [bounds.getNorth(), bounds.getEast()],
+  ].map(([lat, lng]) => toUtmInZone(lat, lng, zone));
+  return {
+    eMin: Math.min(...pts.map((p) => p.e)),
+    eMax: Math.max(...pts.map((p) => p.e)),
+    nMin: Math.min(...pts.map((p) => p.n)),
+    nMax: Math.max(...pts.map((p) => p.n)),
+  };
+}
+
 /* ---------- UTM 方格網與方格數字 ---------- */
 function renderGrid() {
   gridLayer.clearLayers();
@@ -681,30 +910,16 @@ function drawGrid() {
     [b.getNorth(), b.getEast()],
     [b.getCenter().lat, b.getCenter().lng],
   ].forEach(([lat, lng]) => zones.add(utmZoneForLng(lng)));
-  zones.forEach((zone) => drawZoneGrid(zone, b, step, style, major));
+  // 線用放大後嘅容器範圍畫（紙面四邊都有線），數字就擺喺紙面之內。
+  const lb = visibleBounds();
+  zones.forEach((zone) => drawZoneGrid(zone, b, lb, step, style, major));
 }
 
 /** 繪製單一 UTM zone 的方格，並按經度裁剪到該 zone 一側。 */
-function drawZoneGrid(zone, b, step, style, major) {
+function drawZoneGrid(zone, b, lb, step, style, major) {
   const lngW = zone === 49 ? -200 : 113.999;
   const lngE = zone === 49 ? 114.001 : 200;
-  const corners = [
-    [b.getSouth(), b.getWest()],
-    [b.getSouth(), b.getEast()],
-    [b.getNorth(), b.getWest()],
-    [b.getNorth(), b.getEast()],
-  ];
-  let eMin = Infinity;
-  let eMax = -Infinity;
-  let nMin = Infinity;
-  let nMax = -Infinity;
-  for (const [lat, lng] of corners) {
-    const p = toUtmInZone(lat, lng, zone);
-    eMin = Math.min(eMin, p.e);
-    eMax = Math.max(eMax, p.e);
-    nMin = Math.min(nMin, p.n);
-    nMax = Math.max(nMax, p.n);
-  }
+  const { eMin, eMax, nMin, nMax } = zoneRange(zone, b);
   const pad = step;
   const e0 = Math.floor((eMin - pad) / step) * step;
   const e1 = Math.ceil((eMax + pad) / step) * step;
@@ -712,10 +927,11 @@ function drawZoneGrid(zone, b, step, style, major) {
   const n1 = Math.ceil((nMax + pad) / step) * step;
   const samples = 16;
   const maxLines = 120;
-  const zoneWest = Math.max(b.getWest(), zone === 49 ? -180 : 114.001);
-  const zoneEast = Math.min(b.getEast(), zone === 49 ? 113.999 : 180);
+  const zoneWest = Math.max(lb.getWest(), zone === 49 ? -180 : 114.001);
+  const zoneEast = Math.min(lb.getEast(), zone === 49 ? 113.999 : 180);
   const labelLng = zoneWest < zoneEast ? (zoneWest + zoneEast) / 2 : zone === 49 ? 113.999 : 114.001;
-  const labelEasting = toUtmInZone(b.getCenter().lat, labelLng, zone).e;
+  const labelEasting = toUtmInZone(lb.getCenter().lat, labelLng, zone).e;
+  const labelNMax = zoneRange(zone, lb).nMax;
   let count = 0;
   // 數字顏色用中性灰（接近一般地圖注記），不用網線紫。
   const labelColor = state.layer === "imagery" ? "#3f3b34" : "#57534a";
@@ -724,7 +940,7 @@ function drawZoneGrid(zone, b, step, style, major) {
   for (let e = e0; e <= e1 && count < maxLines; e += step, count++) {
     drawClippedLine(zone, lngW, lngE, samples, true, e, n0, n1, style);
     if (shouldLabelGridLine(e, step, major)) {
-      labelLineAt(zone, lngW, lngE, e, nMax, "east", step, labelColor);
+      labelLineAt(zone, lngW, lngE, e, labelNMax, "east", step, labelColor);
     }
   }
   count = 0;
@@ -1022,6 +1238,7 @@ map.on("click", (e) => {
 });
 
 map.on("moveend zoomend", () => {
+  applyMapRotation(); // 跨 114° 分區或移動中心 → 方格收斂角會變
   renderGrid();
   resnapScale();
   updateScaleChip();
@@ -1177,8 +1394,7 @@ function setTool(tool) {
 
 /* ---------- 白紙外檢查（設計不會超出列印範圍） ---------- */
 function controlsOffPaper() {
-  const b = map.getBounds();
-  return (state.course.controls || []).filter((c) => !b.contains([c.lat, c.lng]));
+  return (state.course.controls || []).filter((c) => !onPaper(L.latLng(c.lat, c.lng)));
 }
 
 function updateOffPaper() {
@@ -1361,7 +1577,7 @@ function renderSheetInfo() {
   const s = state.course.scaleLocked
     ? currentScaleLock()
     : Math.round(scaleDenominator(map.getCenter().lat, map.getZoom()));
-  let meta = `${kind}　·　${mode}　·　${state.course.paperSize || "A4"} ${orientationLabel(orientation)}　·　比例 ${scaleLabel(s)}${state.course.scaleLocked ? "（鎖定）" : ""}　·　${list.length} 個點　·　約 ${distTxt}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
+  let meta = `${kind}　·　${mode}　·　${state.course.paperSize || "A4"} ${orientationLabel(orientation)}　·　比例 ${scaleLabel(s)}${state.course.scaleLocked ? "（鎖定）" : ""}　·　${list.length} 個點　·　約 ${distTxt}　·　${state.paperNorth === "true" ? "真北向上" : `方格北向上 ${Math.abs(paperRotationDeg()).toFixed(2)}°（HM20C）`}　·　磁偏角 ${MAG_DECLINATION_WEST}°W`;
   if (state.course.meet) meta += `　·　集合 ${state.course.meet}`;
   if (state.course.cutoff) meta += `　·　截止 ${state.course.cutoff}`;
   if (state.course.sos) meta += `　·　緊急 ${state.course.sos}`;
@@ -1393,6 +1609,7 @@ function persist() {
   all.current = state.course;
   all.layer = state.layer;
   all.previewMode = state.previewMode;
+  all.paperNorth = state.paperNorth;
   all.screenWidthCm = state.screenWidthCm;
   all.contours = { on: state.contoursOn, labels: state.contourLabelsOn };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
@@ -1539,6 +1756,9 @@ function bind() {
     const checkbox = document.getElementById("opt-grid");
     if (checkbox) checkbox.checked = state.gridOn;
     renderGrid();
+  });
+  document.getElementById("btn-paper-north").addEventListener("click", () => {
+    setPaperNorth(state.paperNorth === "true" ? "grid" : "true");
   });
   document.getElementById("btn-contours").addEventListener("click", () => setContours(!state.contoursOn));
   document.getElementById("btn-fit-course").addEventListener("click", fitCourse);
@@ -1744,6 +1964,9 @@ function boot() {
   if (typeof savedAll.screenWidthCm === "number" && savedAll.screenWidthCm > 0) {
     state.screenWidthCm = savedAll.screenWidthCm;
   }
+  if (savedAll.paperNorth === "true" || savedAll.paperNorth === "grid") {
+    state.paperNorth = savedAll.paperNorth;
+  }
   if (savedAll.contours && typeof savedAll.contours === "object") {
     state.contoursOn = Boolean(savedAll.contours.on);
     state.contourLabelsOn = savedAll.contours.labels !== false;
@@ -1773,6 +1996,8 @@ function boot() {
     } catch {}
   }
 
+  applyMapRotation();
+  syncPaperNorthButton();
   renderSheets();
   bind();
   applyBasemap();

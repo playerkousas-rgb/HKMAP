@@ -60,6 +60,29 @@ export function utmZoneForLng(lng) {
   return lng < 114.0 ? 49 : 50;
 }
 
+/** UTM 中央子午線（東經度數）：zone 49＝111°E，zone 50＝117°E。 */
+export const UTM_CENTRAL_MERIDIAN = { 49: 111, 50: 117 };
+
+/**
+ * 方格收斂角（grid convergence，度）：UTM 方格北與真北的夾角。
+ * 正值＝方格北在真北以東；負值＝方格北在真北以西。
+ * 香港離中央子午線 2–3°，所以約 ±0.9–1.1°（用 atan(tan Δλ·sin φ)，誤差 < 0.01°）。
+ */
+export function gridConvergenceDeg(lat, lng, zone = utmZoneForLng(lng)) {
+  const cm = UTM_CENTRAL_MERIDIAN[zone] ?? 117;
+  const dLng = ((lng - cm) * Math.PI) / 180;
+  const phi = (lat * Math.PI) / 180;
+  return (Math.atan(Math.tan(dLng) * Math.sin(phi)) * 180) / Math.PI;
+}
+
+/**
+ * 要令方格北向上（＝紙本 HM20C 的擺法：圖廓與方格線平行），
+ * 地圖內容要順時針轉幾多度（正值＝順時針，可直接用喺 CSS rotate）。
+ */
+export function gridNorthUpRotationDeg(lat, lng, zone = utmZoneForLng(lng)) {
+  return -gridConvergenceDeg(lat, lng, zone);
+}
+
 function utmEpsg(zone) {
   return zone === 49 ? "EPSG:32649" : "EPSG:32650";
 }
@@ -397,6 +420,55 @@ export const HM20C_SHEETS = [
     zoom: 13,
   },
 ];
+
+/** 紙本 HM20C 圖幅尺寸（幅 1 為圖例，無地形）。 */
+export const HM20C_SHEET_MM = { w: 685, h: 980, scale: 20000 };
+
+/**
+ * 某一幅的固定方位。紙本 HM20C 每一幅都是「方格北向上」，
+ * 但每幅所在的 UTM zone／經度不同，所以收斂角（＝整幅要轉的角度）幅幅不同。
+ * 用該幅中心計算，令同一幅內由頭到尾都用同一個角度（同紙本一樣唔會邊行邊轉）。
+ */
+export function sheetNorthAngle(sheet) {
+  const [lat, lng] = sheet.center;
+  const zone = utmZoneForLng(lng);
+  return {
+    zone,
+    convergence: gridConvergenceDeg(lat, lng, zone),
+    rotation: gridNorthUpRotationDeg(lat, lng, zone),
+  };
+}
+
+/**
+ * 地圖中心最近的一幅 HM20C（幅 1 圖例不計），連同該幅的方位。
+ * 只按 16 幅的公佈中心做最近點分幅（近似幅界）；回傳 null 表示沒有可用圖幅。
+ */
+export function nearestHm20cSheet(lat, lng) {
+  const cos = Math.cos((lat * Math.PI) / 180);
+  let best = null;
+  let bestD = Infinity;
+  for (const sheet of HM20C_SHEETS) {
+    if (sheet.id === "1") continue;
+    const dLat = sheet.center[0] - lat;
+    const dLng = (sheet.center[1] - lng) * cos;
+    const d = Math.hypot(dLat, dLng);
+    if (d < bestD) {
+      bestD = d;
+      best = sheet;
+    }
+  }
+  if (!best) return null;
+  return { ...best, ...sheetNorthAngle(best), distanceKm: bestD * 111.32 };
+}
+
+/** 全部 16 幅的方位（幅 1 圖例除外），方便核對與測試。 */
+export function hm20cSheetAngles() {
+  return HM20C_SHEETS.filter((sheet) => sheet.id !== "1").map((sheet) => ({
+    id: sheet.id,
+    name: sheet.name,
+    ...sheetNorthAngle(sheet),
+  }));
+}
 
 export const GAZETTEER = [
   { name: "尖沙咀鐘樓", q: "Tsim Sha Tsui Clock Tower", lat: 22.2936, lng: 114.1694, tag: "城市" },

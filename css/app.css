@@ -379,14 +379,68 @@ button, input, select, textarea { font-family: inherit; }
 .sheet-mark img { width: 26px; height: 26px; border-radius: 7px; }
 .sheet-mark small { font-weight: 500; color: #666; }
 
-/* 地圖 = 紙面圖框（第一頁幾乎滿版） */
-#map {
-  width: var(--map-w-screen, 1123px);
-  height: var(--map-h-screen, 714px);
+/* 地圖 = 紙面圖框（第一頁幾乎滿版）。
+   .map-frame 永遠正對紙邊；#map 收埋喺入面，會按「方格北向上」轉少少（香港約 0.9–1.2°，
+   同紙本 HM20C 一樣），所以 #map 要比圖框大少少再 overflow: hidden，四角先唔會露白。 */
+.map-frame {
+  --map-w: var(--map-w-screen, 1123px);
+  --map-h: var(--map-h-screen, 714px);
+  /* cos / sin 1.5°：香港方格收斂角最大約 1.2°，預留少少。 */
+  --rot-c: 0.99966;
+  --rot-s: 0.02618;
+  position: relative;
+  width: var(--map-w);
+  height: var(--map-h);
+  overflow: hidden;
   border: 1px solid #222;
   background: #cfd6c8;
   flex: 0 0 auto;
 }
+#map {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--map-w);
+  height: var(--map-h);
+  transform: translate(-50%, -50%) rotate(var(--map-rot, 0deg));
+  background: #cfd6c8;
+}
+/* 方格北向上＝紙圖要轉：容器放大到轉動後仍然蓋滿整個圖框。 */
+body[data-paper-north="grid"] #map {
+  width: calc(var(--map-w) * var(--rot-c) + var(--map-h) * var(--rot-s));
+  height: calc(var(--map-h) * var(--rot-c) + var(--map-w) * var(--rot-s));
+}
+/* 放大後 Leaflet 的縮放／版權控制項仍然要留喺圖框四角。 */
+body[data-paper-north="grid"] .leaflet-control-container > .leaflet-top.leaflet-left {
+  top: calc((100% - var(--map-h)) / 2);
+  left: calc((100% - var(--map-w)) / 2);
+}
+body[data-paper-north="grid"] .leaflet-control-container > .leaflet-bottom.leaflet-right {
+  right: calc((100% - var(--map-w)) / 2);
+  bottom: calc((100% - var(--map-h)) / 2);
+}
+
+/* 北針：方＝方格北（紙圖向上）／真＝真北／磁＝磁北；同紙本 HM20C 圖邊資料一樣會一齊列印。 */
+.north-point {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px 3px 3px;
+  border-radius: 8px;
+  background: rgba(255, 253, 247, .82);
+  color: #2b2b2b;
+  font-size: 8px;
+  line-height: 1.3;
+  pointer-events: none;
+}
+.north-point svg { display: block; }
+.north-key { display: flex; flex-direction: column; gap: 1px; }
+.north-key span { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.north-key i { width: 8px; height: 2px; border-radius: 1px; display: inline-block; }
 
 /* 近似紙本 HM20C 配色：只處理官方底圖／地名字磚，勿影響航照、郊遊圖或路線套印。
    SVG 濾鏡不讀取或改寫跨域圖磚；畫面和列印共用，無法補上原圖磚未提供的地物。 */
@@ -811,6 +865,28 @@ label.field textarea { min-height: 60px; resize: vertical; }
 .dialog p { font-size: 13px; line-height: 1.65; color: #33413b; }
 .dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 
+/* 離線底圖（活動前下載圖磚；見 js/offline.js 同 sw.js） */
+.offline-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.offline-row > span { font-weight: 700; color: #33413b; min-width: 36px; }
+.offline-row label { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
+.offline-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(20, 32, 27, .14);
+  overflow: hidden;
+  margin: 6px 0 2px;
+}
+.offline-bar > i { display: block; height: 100%; width: 0; background: var(--forest, #1f4d3a); transition: width .2s; }
+#offline-chip[hidden] { display: none !important; }
+body.is-offline #offline-chip { display: inline-block; }
+
 .course-icon {
   background: transparent !important;
   border: 0 !important;
@@ -1036,6 +1112,12 @@ label.field textarea { min-height: 60px; resize: vertical; }
     left: calc(8px * var(--preview-inv, 1));
   }
   .paper-stack .leaflet-control-container > .leaflet-top.leaflet-left { transform-origin: 0 100%; }
+  /* 方格北向上時 #map 比圖框大，左下角要加回放大後嘅邊距。 */
+  body[data-paper-north="grid"] .leaflet-control-container > .leaflet-top.leaflet-left {
+    top: auto;
+    bottom: calc(30px * var(--preview-inv, 1) + (100% - var(--map-h)) / 2);
+    left: calc(8px * var(--preview-inv, 1) + (100% - var(--map-w)) / 2);
+  }
   .coord-readout {
     left: 88px;
     right: 8px;
@@ -1048,6 +1130,8 @@ label.field textarea { min-height: 60px; resize: vertical; }
     line-height: 1.35;
   }
   .credit { display: none; }
+  /* 手機地圖細：北針縮細少少，唔好蓋住太多圖面。 */
+  .north-point { transform: scale(.86); transform-origin: 100% 0; font-size: 7.5px; }
   .leaflet-control-attribution {
     max-width: 100%;
     font-size: 9px !important;
@@ -1150,9 +1234,10 @@ body[data-paper="A5"][data-orientation="portrait"] { page: pageA5P; }
   .sheet-head-desc {
     min-height: var(--desc-head-h-print, 10mm);
   }
-  #map {
-    width: var(--map-w-print, 297mm);
-    height: var(--map-h-print, 189mm);
+  /* 列印用同一套 mm 尺寸；方格北向上時 #map 的放大／旋轉照樣套用。 */
+  .map-frame {
+    --map-w: var(--map-w-print, 297mm);
+    --map-h: var(--map-h-print, 189mm);
   }
   .sheet-foot {
     min-height: var(--foot-h-print, 5mm);
