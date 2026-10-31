@@ -388,6 +388,9 @@ button, input, select, textarea { font-family: inherit; }
   /* cos / sin 1.5°：香港方格收斂角最大約 1.2°，預留少少。 */
   --rot-c: 0.99966;
   --rot-s: 0.02618;
+  /* #map 實際盒大小：方格北向上時要放大到轉動後仍然蓋滿圖框。 */
+  --map-box-w: var(--map-w);
+  --map-box-h: var(--map-h);
   position: relative;
   width: var(--map-w);
   height: var(--map-h);
@@ -396,19 +399,23 @@ button, input, select, textarea { font-family: inherit; }
   background: #cfd6c8;
   flex: 0 0 auto;
 }
+body[data-paper-north="grid"] .map-frame {
+  --map-box-w: calc(var(--map-w) * var(--rot-c) + var(--map-h) * var(--rot-s));
+  --map-box-h: calc(var(--map-h) * var(--rot-c) + var(--map-w) * var(--rot-s));
+}
+/* 置中要用 left／top 的 calc，**唔用** translate(-50%, -50%)：
+   Chrome 列印多頁文件（「列印地圖」＋「檢查點說明」）時，百分比 translate
+   會令 Leaflet 圖層（圖磚、方格網、標記）整層印低幾十 mm，
+   即「列印／另存 PDF 時地圖移位」。用 calc 定位，畫面同列印結果一致。
+   （inset:0 + margin:auto 都唔可靠：盒大過圖框時 Chrome 會將左邊 margin 當 0。） */
 #map {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: var(--map-w);
-  height: var(--map-h);
-  transform: translate(-50%, -50%) rotate(var(--map-rot, 0deg));
+  left: calc((100% - var(--map-box-w)) / 2);
+  top: calc((100% - var(--map-box-h)) / 2);
+  width: var(--map-box-w);
+  height: var(--map-box-h);
+  transform: rotate(var(--map-rot, 0deg));
   background: #cfd6c8;
-}
-/* 方格北向上＝紙圖要轉：容器放大到轉動後仍然蓋滿整個圖框。 */
-body[data-paper-north="grid"] #map {
-  width: calc(var(--map-w) * var(--rot-c) + var(--map-h) * var(--rot-s));
-  height: calc(var(--map-h) * var(--rot-c) + var(--map-w) * var(--rot-s));
 }
 /* 放大後 Leaflet 的縮放／版權控制項仍然要留喺圖框四角。 */
 body[data-paper-north="grid"] .leaflet-control-container > .leaflet-top.leaflet-left {
