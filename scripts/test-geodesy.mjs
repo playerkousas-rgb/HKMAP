@@ -67,7 +67,8 @@ test("頁面有齊紙圖方位的接駁", () => {
   assert.match(html, /id="north-point"/);
   assert.match(html, /id="btn-paper-north"/);
   assert.match(css, /\.map-frame\s*\{/);
-  assert.match(css, /body\[data-paper-north="grid"\] #map/);
+  // 方格北向上：.map-frame 用 --map-box-* 放大 #map，令轉動後仍然蓋滿圖框。
+  assert.match(css, /body\[data-paper-north="grid"\] \.map-frame\s*\{[^}]*--map-box-w/);
   assert.match(css, /rotate\(var\(--map-rot/);
 });
 
