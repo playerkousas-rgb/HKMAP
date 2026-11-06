@@ -897,11 +897,30 @@ body.is-offline #offline-chip { display: inline-block; }
 .course-icon {
   background: transparent !important;
   border: 0 !important;
+  box-shadow: none !important;
 }
+/* 起點三角形：inline SVG（見 js/overprint.js），唔好用 background-image。
+   列印時「背景圖形」可以關閉，但 inline SVG 係前景內容，照樣印得見。
+   容器保持全透明，唔好有白底／邊框蓋住三角形。 */
 .course-start {
-  width: 24px;
-  height: 22px;
-  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'><path d='M12 2 L22 20 H2 Z' fill='none' stroke='%23d00070' stroke-width='2.4' stroke-linejoin='round'/></svg>") center/contain no-repeat;
+  display: block;
+  width: 28px;
+  height: 26px;
+  background: transparent !important;
+  border: 0 !important;
+  overflow: visible;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.course-start path {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.course-control .ring,
+.course-control .lab,
+.course-finish {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 .course-control {
   position: relative;

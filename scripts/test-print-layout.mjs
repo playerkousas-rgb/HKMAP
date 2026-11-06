@@ -84,3 +84,26 @@ test("列印：地圖尺寸改用 -print 變數（畫面＝列印）", () => {
   assert.match(printBlock, /--map-w:\s*var\(--map-w-print/);
   assert.match(printBlock, /--map-h:\s*var\(--map-h-print/);
 });
+
+test("列印：起點三角形用 inline SVG，唔靠 CSS 背景圖（背景圖形關掉都印得見）", () => {
+  const overprint = readFileSync(new URL("../js/overprint.js", import.meta.url), "utf8");
+  const startIcon = overprint.match(/kind === "start"[\s\S]*?\n  \}/)?.[0] || "";
+  const startHtml = startIcon.match(/html:\s*(`[^`]*`)/)?.[1] || "";
+  assert.match(startHtml, /<svg[^>]*class="course-start"/, "起點要用 inline <svg class=\"course-start\">");
+  assert.match(startHtml, /viewBox="0 0 24 22"/, "起點 SVG 要有 24×22 viewBox");
+  assert.match(startHtml, /<path d="M12 2 L22 20 H2 Z"/, "起點 SVG 要畫三角形");
+  assert.match(startHtml, /stroke="#d00070"/, "起點三角形要紫紅色描邊");
+  assert.doesNotMatch(startHtml, /background-image|url\(/, "起點唔可以用 CSS 背景圖（列印會消失）");
+  // 起點標記要喺最頂層，唔好被方格數字／其他標記蓋住。
+  assert.match(overprint, /zIndexOffset:\s*1000/, "路線標記要 zIndexOffset 1000");
+});
+
+test("列印：起點／路線標記容器全透明，並有 print-color-adjust", () => {
+  const startRule = rule(".course-start");
+  assert.doesNotMatch(startRule, /background-image|url\(/, "起點容器唔可以用背景圖");
+  assert.match(startRule, /background:\s*transparent/, "起點容器要透明，唔可以有白底");
+  assert.match(startRule, /print-color-adjust:\s*exact/, "起點要 print-color-adjust: exact");
+  const iconRule = rule(".course-icon");
+  assert.match(iconRule, /background:\s*transparent/, "標記容器要透明");
+  assert.match(iconRule, /border:\s*0/, "標記容器唔可以有邊框");
+});

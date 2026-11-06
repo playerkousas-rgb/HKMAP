@@ -12,9 +12,12 @@ export function orderedControls(controls) {
 
 export function controlIcon(ctrl, index) {
   if (ctrl.kind === "start") {
+    // 起點三角形用 inline SVG，唔好用 CSS background-image：
+    // Chrome／Edge 列印或另存 PDF 時預設唔印背景圖，三角形會整塊消失（變白）。
+    // inline SVG 屬前景內容，就算「背景圖形」關閉都照樣印得出。
     return L.divIcon({
       className: "course-icon",
-      html: `<div class="course-start" title="起點"></div>`,
+      html: `<svg class="course-start" viewBox="0 0 24 22" width="28" height="26" preserveAspectRatio="xMidYMid meet" role="img" aria-label="起點" focusable="false"><path d="M12 2 L22 20 H2 Z" fill="none" stroke="#d00070" stroke-width="2.4" stroke-linejoin="round"/></svg>`,
       iconSize: [28, 26],
       iconAnchor: [14, 18],
     });
@@ -55,6 +58,8 @@ export function drawOverprint(layer, controls, options = {}) {
       draggable: Boolean(options.draggable),
       icon: controlIcon(ctrl, i),
       riseOnHover: true,
+      // 起點／CP／終點要壓過方格數字（zIndexOffset 100）同其他標記，永遠喺最頂層。
+      zIndexOffset: 1000,
       keyboard: false,
     }).addTo(layer);
     if (options.onDragStart) {
