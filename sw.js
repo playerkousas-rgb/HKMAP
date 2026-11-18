@@ -14,8 +14,14 @@ const APP_CACHE = "scout-app-v1";
 const TILE_HOSTS = new Set(["mapapi.geodata.gov.hk"]);
 
 /* 開網站一次就已經有齊「App 本身」，斷網都開得返。 */
+const PAGES = ["index", "download", "mock", "print"];
 const CORE_FILES = [
-  "index.html",
+  ...PAGES.map((page) => `${page}.html`),
+  "store_gate_v1.0.js",
+  "js/entry_v1.1.0.js",
+  "css/download.css",
+  "css/mock.css",
+  "js/download-page.js",
   "css/app.css",
   "assets/mark.svg",
   "js/app.js",
@@ -31,11 +37,8 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(APP_CACHE);
-      await Promise.all(
-        CORE_FILES.map((file) =>
-          cache.add(new Request(file, { cache: "reload" })).catch(() => {})
-        )
-      );
+      // 整組寫入：若缺閘門或其他核心檔，唔好啟用半套新版離線頁。
+      await cache.addAll(CORE_FILES.map((file) => new Request(file, { cache: "reload" })));
       await self.skipWaiting();
     })()
   );
@@ -115,9 +118,16 @@ async function networkFirst(request, cacheName) {
     if (canStore(response)) cache.put(request, response.clone()).catch(() => {});
     return response;
   } catch {
-    const hit =
-      (await cache.match(request, { ignoreVary: true })) ||
-      (request.mode === "navigate" ? await cache.match("index.html") : null);
+    // 舊 clean URL／帶 query 嘅快取可能仲係未掛閘嘅 HTML。離線導覽用已更新嘅入口頁，
+    // 唔使改 cache 名或清除下載嘅圖磚。網址同 query 留畀頁面照常處理。
+    const navigate = request.mode === "navigate";
+    const page = new URL(request.url).pathname.slice(1).replace(/\/$/, "").replace(/\.html$/, "") || "index";
+    const hit = (navigate && PAGES.includes(page) && await cache.match(`${page}.html`)) ||
+      await cache.match(request, { ignoreVary: true }) || (navigate && await cache.match("index.html"));
+    if (hit && navigate && hit.redirected) {
+      // cleanUrls 令預取 .html 跟過 308；導覽唔接受 redirected Response。
+      return new Response(hit.body, { headers: hit.headers, status: hit.status, statusText: hit.statusText });
+    }
     if (hit) return hit;
     if (request.mode === "navigate") {
       return new Response(

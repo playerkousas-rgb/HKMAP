@@ -2,8 +2,12 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
+  <script src="/store_gate_v1.0.js"></script>
+  <script src="/js/entry_v1.1.0.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>下載電子地圖 · Scout System</title>
+  <meta name="app-version" content="v1.1.0" />
+  <meta name="description" content="香港官方電子底圖、GeoPDF 下載索引及 QGIS 列印教學。" />
+  <title>下載電子地圖 · Scout System · v1.1.0</title>
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -30,10 +34,14 @@
       <a class="nav" href="download.html?tab=qgis">QGIS 教學（框線＋等高線）</a>
       <a class="nav" href="https://scout-admin-blue.vercel.app/report.html?app=定向地圖" target="_blank" rel="noopener">🐛 回報 · 意見</a>
     </div>
+    <div class="entry-actions">
+      <a id="storeSupportTop" class="ghost support-btn" target="_blank" rel="noopener" hidden
+         aria-label="前往主站讚好或收藏 HKMAP（開新分頁）" title="前往主站讚好或收藏 HKMAP（開新分頁）">❤️ 讚好／收藏</a>
+    </div>
   </header>
   <div class="page-inner">
     <section class="hero">
-      <span class="badge-free">© Scout System</span>
+      <span class="badge-free">© Scout System · v1.1.0</span>
       <h1>電子地圖下載中心</h1>
       <p>給童軍成員：這裡提供<strong>地政總署官方地圖檔</strong>。電子版 HM20C＝iB20000，另有 e香港街城市街道圖。下載地圖後若要在 QGIS 加地圖框線、等高線、方格網及列印，請開啟「4. QGIS 教學」：(1)、(2)、(3)… 逐步做，每步都有檢查位。</p>
     </section>
@@ -45,6 +53,8 @@
     </nav>
     <div id="panel"></div>
   </div>
-  <script type="module" src="js/download-page.js"></script>
+  <script type="module">
+    if (!document.documentElement.hasAttribute('data-store-gated')) await import('./js/download-page.js');
+  </script>
 </body>
 </html>

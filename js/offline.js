@@ -110,7 +110,7 @@ async function suggestDownloadOnce(toast) {
     const cache = await caches.open(TILE_CACHE);
     if ((await cache.keys()).length) return;
     setTimeout(() => {
-      sessionStorage.setItem("scout-offline-hint", "1");
+      try { sessionStorage.setItem("scout-offline-hint", "1"); } catch { return; }
       toast(
         ui.t(
           "活動前可按頂欄「📥 離線」下載底圖，現場冇網絡都用得",

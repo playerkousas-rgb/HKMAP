@@ -2,11 +2,16 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
+  <script src="/store_gate_v1.0.js"></script>
+  <script src="/js/entry_v1.1.0.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>列印已合併至設計頁 · Scout System</title>
+  <meta name="app-version" content="v1.1.0" />
+  <meta name="description" content="舊列印入口；現已可在設計頁按原比例直接列印。" />
+  <title>列印已合併至設計頁 · Scout System · v1.1.0</title>
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
-  <meta http-equiv="refresh" content="0; url=index.html" />
-  <script>location.replace("index.html");</script>
+  <script>
+    if (!document.documentElement.hasAttribute('data-store-gated')) location.replace("index.html");
+  </script>
   <style>
     body { font-family: "Noto Sans TC", sans-serif; background: #16362c; color: #f3eee3; display: grid; place-items: center; height: 100vh; margin: 0; }
     a { color: #f0d48a; }
@@ -17,6 +22,6 @@
   <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
-  <p>列印模式已同設計頁合併（設計＝列印）。<a href="index.html">按此前往設計頁</a>，直接按「🖨 列印地圖」即可。</p>
+  <p>v1.1.0 · 列印模式已同設計頁合併（設計＝列印）。<a href="index.html">按此前往設計頁</a>，直接按「🖨 列印地圖」即可。</p>
 </body>
 </html>

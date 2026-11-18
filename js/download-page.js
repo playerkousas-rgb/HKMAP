@@ -136,7 +136,7 @@ function renderCountryside(filter = "") {
         <a class="file" href="${COUNTRYSIDE_META.index}" target="_blank" rel="noopener"><b>郊區地圖索引圖</b><small>官方索引（2026）一按下載</small></a>
         <a class="file" href="${COUNTRYSIDE_META.official}" target="_blank" rel="noopener"><b>地政總署官方頁</b><small>紙本地圖購買及版次</small></a>
         <a class="file" href="${COUNTRYSIDE_META.hiking}" target="_blank" rel="noopener"><b>遠足徑／封閉消息</b><small>hiking.gov.hk　出發前查看</small></a>
-        <a class="file" href="index.html" target="_blank" rel="noopener"><b>在主頁用郊遊圖底圖設計</b><small>切到底圖「郊遊圖」即 OpenTopoMap</small></a>
+        <a class="file" href="index.html?layer=countryside"><b>在主頁用郊遊圖底圖設計</b><small>切到底圖「郊遊圖」即 OpenTopoMap</small></a>
       </div>
       <input class="filter" id="country-q" placeholder="搜尋郊遊圖，例如：大嶼山、西貢、香港島" value="${filter.replace(/"/g, "&quot;")}" />
     </section>

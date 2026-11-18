@@ -52,7 +52,7 @@ const GUARD_FILES = [".vercelignore", "scripts/slim-guard.mjs", "docs/瘦身與�
 const CORE_FILES = [
   "index.html", "download.html", "mock.html", "print.html", "vercel.json",
   "css/app.css", "js/app.js", "js/report.js", "assets/mark.svg",
-  "js/offline.js", "sw.js",
+  "js/offline.js", "sw.js", "store_gate_v1.0.js",
 ];
 /** 回報系統（統一回報格式 v1）——全家標準，缺一项即紅。 */
 const REPORT = {
@@ -113,6 +113,10 @@ function localRefs(rel, text) {
   const file = rel;
   if (file.endsWith(".html")) {
     for (const m of text.matchAll(/(?:href|src|action)\s*=\s*["']([^"']+)["']/gi)) push(m[1]);
+    // Gated pages load their app module only after admission.
+    for (const script of text.matchAll(/<script\b[^>]*\btype=["']module["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+      for (const m of script[1].matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)) push(m[1]);
+    }
   } else if (file.endsWith(".css")) {
     for (const m of text.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/gi)) push(m[1]);
   } else {
@@ -203,7 +207,7 @@ if (!missing) ok(`全部本機引用都存在且會部署（${referenced.size} �
 const reallyDead = deploySet.filter((f) => /^(css|js|assets)\//.test(f) && !referenced.has(f));
 if (!reallyDead.length) ok("css/ js/ assets/ 無死重（每個檔都有人引用）");
 else reallyDead.forEach((f) => fail(`死重資源（冇人引用仲上線）：${f} — 刪除或喺入面引用返佢`));
-const rootStrays = allFiles.filter((f) => !f.includes("/") && !/^(index|download|mock|print)\.html$|^vercel\.json$|^package\.json$|^\.vercelignore$|^\.gitignore$|^README\.md$|^MD$|^教學\.md$|^sw\.js$/ .test(f));
+const rootStrays = allFiles.filter((f) => !f.includes("/") && !/^(index|download|mock|print)\.html$|^vercel\.json$|^package\.json$|^\.vercelignore$|^\.gitignore$|^README\.md$|^MD$|^教學\.md$|^sw\.js$|^store_gate_v1\.0\.js$/.test(f));
 if (!rootStrays.length) ok("根目錄冇額外雜檔");
 else rootStrays.forEach((f) => warn(`根目錄新檔：${f} — 問一句「上線用唔用到？」用唔到就放 docs/ 或加黑名單`));
 

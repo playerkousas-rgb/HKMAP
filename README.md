@@ -1,6 +1,18 @@
 # Scout System · 香港城市定向地圖
 
-**不用登記、不用登入。打開網頁即可設計城市定向紙圖。**
+**v1.1.0 · 由 SCOUT APP STORE 或通告圖書館進入，即可設計城市定向紙圖。不用登記或登入。** 新分頁直打網址會見到一粒「前往 APP STORE」掣；已放行嘅同一分頁可以重整。如瀏覽器支援加入主畫面，先經入口開到 **HKMAP**，再用瀏覽器選單加入。
+
+### 入口、草稿同離線
+
+- `vercel.json`：純靜態，`framework: null`、`outputDirectory: "."`；根目錄嘅 HTML／SW 直接部署。四個 HTML 入口都喺 charset 之後、title 之前同步載入同一份設定：`js/entry_v1.1.0.js`。
+- `appKey: 'hkmap'`、`mode: 'entry-gate'`、`portalIds: ['appstore']`、`silentPortalIds: ['library']`、`allowStandalone: true`、`autoRedirectSeconds: 0`。冇 `supportNudge`、額外追蹤或後端驗票。`store_gate_v1.0.js` [原檔](https://github.com/playerkousas-rgb/readme/blob/4c63ac3096bf87fcff760b45b34adab14b1b2576/templates/vercel/store_gate_v1.0.js)由測試核對 SHA-256，唔直接改。
+- 頂欄「讚好／收藏」只開新分頁去主站詳情卡，該頁先可以讚好／收藏。`getAppStoreUrl('hkmap')` 嘅 slug 係按 `hkmap.vercel.app` 對[主站 seed 第 43 行](https://github.com/playerkousas-rgb/website/blob/4d2e4dd2b5bc2c42987f261117755243edf88b01/migrations/20261116-app-slug-seed.sql#L43)核實；HKMAP 唔連主站資料庫。
+- **路線係本機工作草稿，唔做匯出／匯入或上傳。** `localStorage` 原樣保留 `scout-system-courses-v1`（路線、CP、紙圖設定）及 `scout-system-landsd-terms`（條款）；`sessionStorage` 原有 `scout-offline-hint` 只記離線提示，閘門用 `hkmap.store_pass` 只記同一分頁已放行。冇 IndexedDB。停用／再開放 App 本身唔會清草稿；同一瀏覽器、同一 origin、未清網站資料先可以還原。換裝置、無痕或系統清理唔保證留得住。
+- SW 只做離線快取（`landsd-tiles-v1`／`scout-app-v1`），冇 Push，冇 standalone manifest。出發前請**在線經入口打開**並試離線；全新一般分頁在冇網絡時無法經主站重新入場。
+
+**既有交付約定：** `EXCEPTION: V1` — 保留已發佈嘅固定 HTML、`sw.js` 同原有資源路徑，避免破壞書籤及舊離線拷貝。新接線檔用檔名＋內文版號，HTML meta／title 同 `package.json` 同步；共用 gate 嘅 `v1.0` 唔係 App 版號。雙語方面，呢個 App 早於 docs/44 定案：設計頁有中英工具列／提示切換，SG18 文字、title、aria-label 跟住轉，但未全頁英化，語言亦唔寫入路線資料。
+
+[準入驗收紀錄：本機模擬／真機待測](docs/entry-gate-review.md)
 
 新使用者請先看：
 
@@ -76,7 +88,7 @@
 python3 -m http.server 8080 --bind 0.0.0.0
 ```
 
-瀏覽器開啟該位址即可。圖磚由使用者瀏覽器直接向 `mapapi.geodata.gov.hk` 讀取；開啟等高線時，瀏覽器會向 `services3.arcgis.com`（Esri China (HK) 公開的 iB20000 等高線圖層）查詢，程式見 `js/contours.js`。
+用新分頁開本機位址可檢查單掣入口卡；`npm run check` 可離線驗兩個入口、分頁通行證、standalone 同 SG18 接線，唔需要加任何本機放行例外。圖磚由使用者瀏覽器直接向 `mapapi.geodata.gov.hk` 讀取；開啟等高線時，瀏覽器會向 `services3.arcgis.com`（Esri China (HK) 公開的 iB20000 等高線圖層）查詢，程式見 `js/contours.js`。
 
 ## 全家標準：瘦身系統 ＋ 統一回報系統
 

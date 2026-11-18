@@ -208,7 +208,6 @@ function applySnapshot(snap) {
   if (!prevScaleLocked && state.course.scaleLocked) setZoomControls(false);
   applyBasemap();
   applyPaper();
-  setupOffline(map, { t, toast, askConfirm });
   renderCourse();
   renderMeasure();
   renderSidebar();
@@ -365,7 +364,7 @@ async function runClearAction(action) {
   if (action === "course") {
     const ok = await askConfirm({
       title: t("開新路線？", "New course?"),
-      body: t("會清空檢查點與鎖定，並覆寫本機暫存。建議先匯出 JSON。", "Clears controls and locks, and overwrites the browser draft. Export JSON first if you need it."),
+      body: t("會覆寫呢部瀏覽器嘅路線草稿，包括所有檢查點。要保留原有路線，請取消。", "This replaces the course draft in this browser, including all controls. Cancel to keep it."),
       ok: t("全新路線", "Start fresh"),
       danger: true,
     });
@@ -1840,10 +1839,24 @@ function bind() {
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".hist-clear")) closeClearMenu();
   });
-  document.getElementById("btn-lang").addEventListener("click", () => {
+  const langButton = document.getElementById("btn-lang");
+  langButton.addEventListener("click", () => {
     state.lang = state.lang === "zh" ? "en" : "zh";
-    document.getElementById("btn-lang").textContent = state.lang === "zh" ? "EN" : "中";
-    toast(state.lang === "zh" ? "介面以中文為主" : "Labels stay bilingual; UI notes in English");
+    document.documentElement.dataset.lang = state.lang;
+    document.documentElement.lang = t("zh-Hant-HK", "en");
+    langButton.textContent = t("EN", "中文");
+    langButton.lang = t("en", "zh-Hant-HK");
+    langButton.title = t("Switch toolbar and hints to English", "將工具列同提示切換至中文");
+    langButton.setAttribute("aria-label", langButton.title);
+    for (const el of document.querySelectorAll(".topbar [data-en]")) {
+      el.dataset.zh ??= el.textContent;
+      el.textContent = t(el.dataset.zh, el.dataset.en);
+      if (el.dataset.labelEn) {
+        el.dataset.labelZh ??= el.title;
+        el.title = t(el.dataset.labelZh, el.dataset.labelEn);
+        el.setAttribute("aria-label", el.title);
+      }
+    }
   });
   document.getElementById("btn-goto").addEventListener("click", gotoGrid);
   document.getElementById("grid-input").addEventListener("keydown", (event) => {
@@ -2000,6 +2013,7 @@ function boot() {
   syncPaperNorthButton();
   renderSheets();
   bind();
+  setupOffline(map, { t, toast, askConfirm });
   applyBasemap();
   applyPaper();
   renderCourse();
