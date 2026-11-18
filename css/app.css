@@ -160,6 +160,12 @@ button, input, select, textarea { font-family: inherit; }
   color: var(--muted);
 }
 
+.entry-actions { margin-inline-start: auto; display: flex; align-items: center; gap: 6px; }
+.entry-actions > * { min-width: 40px; min-height: 40px; }
+.support-btn { display: inline-flex; align-items: center; text-decoration: none; white-space: nowrap; }
+.support-btn[hidden] { display: none !important; }
+.entry-actions > :focus-visible { outline: 2px solid var(--gold-2); outline-offset: 2px; }
+
 .top-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; }
 .ghost, .solid, .tool, .chip {
   border: 0;
@@ -1031,8 +1037,9 @@ body.is-offline #offline-chip { display: inline-block; }
     gap: 8px;
     padding: 10px 12px;
   }
+  .entry-actions, .topbar .brand { order: -1; }
   .brand {
-    flex: 1 1 100%;
+    flex: 1 1 0;
     min-width: 0;
     gap: 8px;
   }
@@ -1203,6 +1210,7 @@ body[data-paper="A5"][data-orientation="portrait"] { page: pageA5P; }
 @media print {
   body { overflow: visible; background: #fff; }
   .topbar,
+  .support-btn,
   .sidebar,
   .scale-lock,
   .coord-readout,
